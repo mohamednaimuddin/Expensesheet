@@ -16,7 +16,7 @@ $table = strtolower($_GET['table']); // force lowercase
 $username = $_SESSION['username'];
 
 // Validate table name to prevent SQL injection
-$valid_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense', 'labour_expense'];
+$valid_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense', 'labour_expense', 'accessories_expense'];
 if (!in_array($table, $valid_tables)) {
     die("Invalid table.");
 }

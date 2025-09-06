@@ -8,7 +8,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 $username = $_SESSION['username'];
 include 'config.php';
 // --- Count total pending bills ---
-$tables = ['fuel_expense','room_expense','other_expense','tools_expense','labour_expense'];
+$tables = ['fuel_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense'];
 $pending_bill_count = 0;
 
 foreach($tables as $table) {
@@ -30,6 +30,8 @@ $result = $conn->query("
         SELECT COUNT(*) as total FROM room_expense WHERE bill='no'
         UNION ALL
         SELECT COUNT(*) as total FROM other_expense WHERE bill='no'
+        UNION ALL
+        SELECT COUNT(*) as total FROM accessories_expense WHERE bill='no'
     ) as combined
 ")->fetch_assoc();
 

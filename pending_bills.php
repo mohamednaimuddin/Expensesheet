@@ -14,11 +14,12 @@ if (!empty($_POST['update_bill']) && isset($_POST['id'], $_POST['category'])) {
     $bill_value = $_POST['update_bill'] === 'yes' ? 'Yes' : 'No';
 
     $table_map = [
-        'Fuel'   => 'fuel_expense',
-        'Room'   => 'room_expense',
-        'Other'  => 'other_expense',
-        'Tools'  => 'tools_expense',
-        'Labour' => 'labour_expense' // ✅ Added Labour
+        'Fuel'        => 'fuel_expense',
+        'Room'        => 'room_expense',
+        'Other'       => 'other_expense',
+        'Tools'       => 'tools_expense',
+        'Labour'      => 'labour_expense',
+        'Accessories' => 'accessories_expense',
     ];
 
     if (isset($table_map[$category])) {
@@ -58,7 +59,7 @@ if ($region_filter !== '' && $region_filter !== 'All') {
 
 // --- Fetch unique usernames ---
 $usernames = [];
-foreach (['fuel_expense','room_expense','other_expense','tools_expense','labour_expense'] as $table) {
+foreach (['fuel_expense','room_expense','other_expense','tools_expense','labour_expense', 'accessories_expense'] as $table) {
     $res = $conn->query("SELECT DISTINCT username FROM $table");
     if ($res) {
         while ($row = $res->fetch_assoc()) {
@@ -98,13 +99,18 @@ $query = "
     FROM labour_expense
     WHERE (bill IS NULL OR TRIM(bill)='' OR LOWER(bill) IN ('no','pending','n','0')) $filter_sql
 
+    UNION ALL
+
+    SELECT 'Accessories' AS expense_category, id, date, division, company, store, location, description, amount, bill
+    FROM accessories_expense
+    WHERE (bill IS NULL OR TRIM(bill)='' OR LOWER(bill) IN ('no','pending','n','0')) $filter_sql
+
     ORDER BY date ASC
 ";
 
 $result = $conn->query($query);
 if (!$result) die("Query failed: " . $conn->error);
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -122,13 +128,7 @@ body { background: #f8f9fa; }
 .pending { background-color: #fff3cd !important; }
 
 @media print {
-    body, html { 
-        height: 100%; 
-        margin: 0; 
-        padding: 0; 
-        background: #fff; 
-        -webkit-print-color-adjust: exact; 
-    }
+    body, html { height: 100%; margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
     #filterForm, .action-btn, .print-btn, .back-btn { display: none !important; }
     .print-section { display: block; page-break-inside: avoid; }
     .table-responsive { overflow: visible !important; page-break-inside: avoid; }

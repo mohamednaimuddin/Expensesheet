@@ -28,7 +28,7 @@ $region_filter = $_GET['region'] ?? 'All';
 
 // Fetch expenses function (only submitted=1)
 function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', $region = 'All') {
-    $allowed_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense','labour_expense'];
+    $allowed_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense','labour_expense', 'accessories_expense'];
     if (!in_array($table, $allowed_tables)) die("Invalid table specified");
 
     $sql = "SELECT * FROM $table WHERE username=? AND submitted=1";
@@ -68,6 +68,7 @@ $expenses_list = [
     'Other' => get_expenses($conn, 'other_expense', $username, $from_date, $to_date, $region_filter),
     'Tools' => get_expenses($conn, 'tools_expense', $username, $from_date, $to_date, $region_filter),
     'Labour' => get_expenses($conn, 'labour_expense', $username, $from_date, $to_date, $region_filter),
+    'Accessories' =>get_expenses($conn, 'accessories_expense', $username, $from_date, $to_date, $region_filter),
 ];
 
 // Calculate total spend

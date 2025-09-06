@@ -51,10 +51,11 @@ $room_expenses   = get_expenses($conn, 'room_expense', $from_date, $to_date, $re
 $other_expenses  = get_expenses($conn, 'other_expense', $from_date, $to_date, $region_filter, $username);
 $tools_expenses  = get_expenses($conn, 'tools_expense', $from_date, $to_date, $region_filter, $username);
 $labour_expenses = get_expenses($conn, 'labour_expense', $from_date, $to_date, $region_filter, $username);
+$accessories_expense = get_expenses($conn, 'accessories_expense', $from_date, $to_date, $region_filter, $username);
 
 // Total spend
 $total_amount = 0;
-foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses] as $expenses) {
+foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses, $accessories_expense] as $expenses) {
     while($row = $expenses->fetch_assoc()) {
         $total_amount += $row['amount'];
     }
@@ -187,7 +188,8 @@ $total_adv = $adv_result->fetch_assoc()['total_adv'] ?? 0;
                     'Room'=>$room_expenses,
                     'Other'=>$other_expenses,
                     'Tools'=>$tools_expenses,
-                    'Labour'=>$labour_expenses
+                    'Labour'=>$labour_expenses,
+                    'Accessories'=>$accessories_expense,
                 ] as $type => $expenses) {
                     while($row = $expenses->fetch_assoc()) {
                         $row['type'] = $type;

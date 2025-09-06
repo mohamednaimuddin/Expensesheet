@@ -24,7 +24,8 @@ $table_map = [
     'other_expense' => 'other_expense',
     'room_expense' => 'room_expense',
     'tools_expense' => 'tools_expense',
-    'labour_expense' => 'labour_expense'
+    'labour_expense' => 'labour_expense',
+    'accessories_expense' => 'accessories_expense'
 ];
 
 $table_key = strtolower($table_param);

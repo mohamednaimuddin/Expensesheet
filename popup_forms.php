@@ -330,6 +330,64 @@
   </div>
 </div>
 
+<!-- Accessories Popup -->
+<div class="popup" id="accessoriesPopup">
+  <div class="popup-content">
+    <span class="close-btn" onclick="closePop('accessoriesPopup')">&times;</span>
+    <h2>Add Accessories Expense</h2>
+    <form action="add_accessories.php" method="POST">
+      <label> Date : </label>
+      <input type="text" name="date" id="accessoriesDate" placeholder="dd-mm-yyy" required>
+
+      <label>Division</label>
+      <select name ="division" required>
+        <option value="">-- Select Division --</option>
+        <option value="Sales">Sales</option>
+        <option value="Project">Project</option>
+        <option value="Service">Service</option>
+        <option value="Installation">Installation</option>
+      </select>
+
+      <label>Region</label>
+      <select name="region" required>
+        <option value="Dammam">Dammam</option>
+        <option value="Riyadh">Riyadh</option>
+        <option value="Jeddah">Jeddah</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Company:</label>
+      <select name="company" required>
+        <option value="Redtag">Redtag</option>
+        <option value="Landmark">Landmark</option>
+        <option value="Apparel">Apparel</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Store:</label>
+      <input type="text" name="store" required>
+
+      <label>Location:</label>
+      <input type="text" name="location" required>
+
+      <label>Description:</label>
+      <textarea name="description" required></textarea>
+
+      <label>Amount:</label>
+      <input type="number" step="0.01" name="amount" required>
+
+      <label>Bill:</label>
+      <select name="bill" required>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+
+      <button type="submit" class="btn">Save Accessories</button>
+    </form>
+  </div>
+</div>
+
+
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
     // Attach flatpickr to each unique input

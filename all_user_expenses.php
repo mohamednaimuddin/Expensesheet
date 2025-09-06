@@ -9,12 +9,15 @@ include 'config.php';
 
 // Get filters
 $from_date = $_GET['from_date'] ?? '';
-$to_date = $_GET['to_date'] ?? '';
+$to_date   = $_GET['to_date'] ?? '';
 $region_filter = $_GET['region'] ?? 'All';
 
 // Fetch expenses function (submitted=1)
 function get_expenses($conn, $table, $from_date = '', $to_date = '', $region = 'All') {
-    $allowed_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense', 'labour_expense']; // ✅ Added labour
+    $allowed_tables = [
+        'fuel_expense', 'food_expense', 'room_expense', 
+        'other_expense', 'tools_expense', 'labour_expense', 'accessories_expense'
+    ];
     if (!in_array($table, $allowed_tables)) die("Invalid table specified");
 
     $sql = "SELECT * FROM $table WHERE submitted=1";
@@ -44,13 +47,15 @@ function get_expenses($conn, $table, $from_date = '', $to_date = '', $region = '
 
 // Fetch all expenses for all users
 $tables = [
-    'fuel_expense'   => 'Fuel',
-    'food_expense'   => 'Food',
-    'room_expense'   => 'Room',
-    'other_expense'  => 'Other',
-    'tools_expense'  => 'Tools',
-    'labour_expense' => 'Labour' // ✅ Added labour
+    'fuel_expense'        => 'Fuel',
+    'food_expense'        => 'Food',
+    'room_expense'        => 'Room',
+    'other_expense'       => 'Other',
+    'tools_expense'       => 'Tools',
+    'labour_expense'      => 'Labour',
+    'accessories_expense' => 'Accessories' // ✅ Added Accessories
 ];
+
 $all_expenses = [];
 $total_amount = 0;
 
@@ -117,15 +122,12 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; word-wrap:b
 </div>
 
 <form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <!-- From Date -->
     <div class="form-group">
         <input type="date" class="form-control form-control-sm" name="from_date" value="<?= htmlspecialchars($from_date) ?>" required>
     </div>
-    <!-- To Date -->
     <div class="form-group">
         <input type="date" class="form-control form-control-sm" name="to_date" value="<?= htmlspecialchars($to_date) ?>" required>
     </div>
-    <!-- Region -->
     <div class="form-group">
         <select class="form-select form-select-sm" name="region">
             <?php
@@ -137,7 +139,6 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; word-wrap:b
             ?>
         </select>
     </div>
-    <!-- Buttons -->
     <div class="btn-group">
         <button class="btn btn-outline-primary btn-sm" type="submit">Search</button>
         <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.location='all_user_expense.php'">Clear</button>
