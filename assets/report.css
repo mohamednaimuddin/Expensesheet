@@ -1,0 +1,190 @@
+/* General Styles */
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0 20px;
+    background: #f9f9f9;
+    color: #333;
+}
+
+.report-header {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.report-header img {
+    height: 60px;
+    margin-bottom: 10px;
+}
+
+.report-header h2 {
+    margin: 5px 0;
+    font-weight: 700;
+}
+
+/* Filters */
+.filters {
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.filters input,
+.filters select {
+    padding: 8px 10px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+.filters button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #007bff;
+    color: #fff;
+    transition: 0.3s;
+}
+
+.filters button:hover {
+    background: #0056b3;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border: 1px solid black;
+}
+
+th {
+    background: #007bff;
+    color: #fff;
+    font-weight: 500;
+}
+
+tr:nth-child(even) td {
+    background: #f2f2f2;
+}
+
+/* Summary Section */
+.total-summary {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.summary-item {
+    background: #fff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+/* Footer */
+.report-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 30px;
+    padding: 15px 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+/* Print Styles */
+.print-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+@media print {
+    .filters, .btn {
+        display: none;
+    }
+    body {
+        margin: 0;
+    }
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 20px;
+    border-radius: 5px;
+    width: 80%;
+    max-width: 700px;
+}
+
+.close-btn {
+    float: right;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.modal table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.modal table th,
+.modal table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+.modal table th {
+    background-color: #f2f2f2;
+}
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    background: #fff; 
+    border-radius: 8px; 
+    overflow: hidden; 
+    box-shadow: 0 0 10px rgba(0,0,0,0.05); 
+    font-size: 13px; /* smaller font */
+}
+th, td { 
+    padding: 8px 10px; /* reduced padding */
+    text-align: left; 
+}
+th { 
+    background: #007bff; 
+    color: #fff; 
+    font-weight: 500; 
+}
+tr:nth-child(even) td { 
+    background: #f2f2f2; 
+}

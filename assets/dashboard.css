@@ -1,0 +1,229 @@
+/* Reset */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6fb;
+    color: #333;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    background: linear-gradient(135deg, #6e8efb, #a777e3);
+    padding: 12px 20px;
+    color: #fff;
+}
+
+.nav-left { display: flex; align-items: center; flex: 1; }
+.nav-logo { width: 40px; margin-right: 10px; }
+.brand { font-size: 20px; font-weight: bold; }
+.nav-right { display: flex; align-items: center; gap: 15px; }
+.logout-btn {
+    background: #fff; color: #6e8efb; padding: 6px 15px;
+    border-radius: 20px; text-decoration: none; font-weight: 500;
+    transition: 0.3s;
+}
+.logout-btn:hover { background: #f2f2f2; }
+
+/* Dashboard Content */
+.dashboard { flex: 1; padding: 30px 15px; text-align: center; }
+.dashboard h1 { font-size: 2rem; margin-bottom: 10px; }
+.subtitle { color: #666; margin-bottom: 25px; }
+
+/* Cards Grid */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+.card {
+    background: #fff;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    text-align: left;
+    transition: transform 0.3s ease;
+}
+.card:hover { transform: translateY(-5px); }
+.card h3 { margin-bottom: 10px; color: #444; }
+.card p { font-size: 14px; margin-bottom: 15px; color: #666; }
+.btn {
+    display: inline-block; background: #6e8efb; color: #fff;
+    padding: 8px 15px; border-radius: 8px; text-decoration: none;
+    font-size: 14px; transition: 0.3s; cursor: pointer;
+}
+.btn:hover { background: #5a7be0; }
+
+/* Footer */
+footer {
+    text-align: center; padding: 15px; font-size: 14px;
+    color: #555; background: #fafafa; border-top: 1px solid #ddd;
+}
+
+/* Table container scrollable for mobile */
+.table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+.table-container table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px; /* ensures table maintains readability */
+}
+
+.table-container th, .table-container td {
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.table-container th {
+    background-color: #f4f4f4;
+}
+
+/* Filters */
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+.filters label {
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.filters input, .filters select {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+
+/* Popup (modal) */
+.popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.3s ease;
+    z-index: 1000;
+}
+
+.popup.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.popup-content {
+    background: #fff;
+    padding: 25px;
+    border-radius: 15px;
+    width: 400px;
+    max-width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: translateY(-50px);
+    transition: transform 0.3s ease;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+}
+
+.popup.active .popup-content {
+    transform: translateY(0);
+}
+
+/* Popup close button */
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+/* Popup form elements */
+.popup-content h2 {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.popup-content form {
+    display: flex;
+    flex-direction: column;
+}
+
+.popup-content form label {
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.popup-content form input,
+.popup-content form select,
+.popup-content form textarea {
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+}
+
+.popup-content form button {
+    padding: 10px;
+    background: #6e8efb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.popup-content form button:hover {
+    background: #5a7be0;
+}
+
+/* Media Queries for responsiveness */
+@media (max-width: 1200px) {
+    .popup-content { width: 450px; }
+}
+
+@media (max-width: 992px) {
+    .popup-content { width: 400px; padding: 20px; }
+}
+
+@media (max-width: 768px) {
+    .navbar { flex-direction: column; align-items: flex-start; }
+    .nav-right { margin-top: 10px; }
+    .cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+    .popup-content { width: 90%; padding: 18px; }
+    .popup-content form input,
+    .popup-content form select,
+    .popup-content form textarea { padding: 8px; font-size: 13px; }
+    .close-btn { top: 10px; right: 15px; }
+    .btn { padding: 8px 12px; font-size: 14px; }
+    .table-container table { min-width: 500px; }
+}
+
+@media (max-width: 480px) {
+    .popup-content { width: 95%; padding: 15px; }
+    .popup-content form input,
+    .popup-content form select,
+    .popup-content form textarea { padding: 7px; font-size: 12px; }
+}
