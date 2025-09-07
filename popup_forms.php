@@ -333,7 +333,7 @@
 <!-- Accessories Popup -->
 <div class="popup" id="accessoriesPopup">
   <div class="popup-content">
-    <span class="close-btn" onclick="closePop('accessoriesPopup')">&times;</span>
+    <span class="close-btn" onclick="closePopup('accessoriesPopup')">&times;</span>
     <h2>Add Accessories Expense</h2>
     <form action="add_accessories.php" method="POST">
       <label> Date : </label>
