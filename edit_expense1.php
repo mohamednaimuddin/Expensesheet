@@ -25,7 +25,8 @@ $table_map = [
     'room_expense' => 'room_expense',
     'tools_expense' => 'tools_expense',
     'labour_expense' => 'labour_expense',
-    'accessories_expense' => 'accessories_expense'
+    'accessories_expense' => 'accessories_expense',
+    'tv_expense' => 'tv_expense' // Added TV expense
 ];
 
 $table_key = strtolower($table_param);
@@ -36,6 +37,7 @@ $table = $table_map[$table_key];
 // Flags for field control
 $is_tools = ($table === 'tools_expense');
 $is_labour = ($table === 'labour_expense');
+$is_tv = ($table === 'tv_expense');
 
 // Fetch expense
 $sql = "SELECT * FROM $table WHERE id=? AND username=?";
@@ -56,20 +58,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $store = $_POST['store'] ?? '';
     $description = $_POST['description'] ?? '';
     $amount = $_POST['amount'] ?? 0;
+    $submitted = isset($_POST['submitted']) ? 1 : 0;
 
     if (!is_numeric($amount)) die("Invalid amount.");
 
-    // Determine disabled fields (Tools or Recharge only)
-    $disable_fields = $is_tools || ($division === 'Recharge');
-
-    if ($disable_fields) {
-        $update_sql = "UPDATE $table SET date=?, description=?, amount=? WHERE id=? AND username=?";
-        $update_stmt = $conn->prepare($update_sql);
-        $update_stmt->bind_param("ssdsi", $date, $description, $amount, $id, $_SESSION['username']);
-    } else {
+    if ($is_tv) {
+        // TV expense: no submitted update needed if you want
         $update_sql = "UPDATE $table SET date=?, division=?, company=?, location=?, store=?, description=?, amount=? WHERE id=? AND username=?";
         $update_stmt = $conn->prepare($update_sql);
-        $update_stmt->bind_param("ssssssdis", $date, $division, $company, $location, $store, $description, $amount, $id, $_SESSION['username']);
+        $update_stmt->bind_param("ssssssdii", $date, $division, $company, $location, $store, $description, $amount, $id, $_SESSION['username']);
+    } else {
+        // Regular expenses
+        $disable_fields = $is_tools || ($division === 'Recharge');
+
+        if ($disable_fields) {
+            $update_sql = "UPDATE $table SET date=?, description=?, amount=?, submitted=? WHERE id=? AND username=?";
+            $update_stmt = $conn->prepare($update_sql);
+            $update_stmt->bind_param("sdiii", $date, $description, $amount, $submitted, $id, $_SESSION['username']);
+        } else {
+            $update_sql = "UPDATE $table SET date=?, division=?, company=?, location=?, store=?, description=?, amount=?, submitted=? WHERE id=? AND username=?";
+            $update_stmt = $conn->prepare($update_sql);
+            $update_stmt->bind_param("ssssssdiss", $date, $division, $company, $location, $store, $description, $amount, $submitted, $id, $_SESSION['username']);
+        }
     }
 
     if ($update_stmt->execute()) {
@@ -102,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="date" id="date" name="date" class="form-control" value="<?= htmlspecialchars($expense['date']); ?>" required>
                         </div>
 
+                        <?php if (!$is_tv): ?>
                         <div class="mb-3">
                             <label for="division" class="form-label">Division</label>
                             <select id="division" name="division" class="form-select" <?= $is_tools ? 'disabled' : 'required' ?>>
@@ -113,26 +124,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="Recharge" <?= $expense['division']=='Recharge'?'selected':'' ?>>Recharge</option>
                             </select>
                         </div>
+                        <?php endif; ?>
 
                         <div class="mb-3">
                             <label for="company" class="form-label">Company</label>
-                            <select id="company" name="company" class="form-select" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
-                                <option value="">-- Select Company --</option>
-                                <option value="Redtag" <?= $expense['company']=='Redtag'?'selected':'' ?>>Redtag</option>
-                                <option value="Landmark" <?= $expense['company']=='Landmark'?'selected':'' ?>>Landmark</option>
-                                <option value="Apparel" <?= $expense['company']=='Apparel'?'selected':'' ?>>Apparel</option>
-                                <option value="Other" <?= $expense['company']=='Other'?'selected':'' ?>>Other</option>
-                            </select>
+                            <input type="text" id="company" name="company" class="form-control" value="<?= htmlspecialchars($expense['company'] ?? ''); ?>" <?= $is_tools ? 'disabled' : 'required' ?>>
                         </div>
 
                         <div class="mb-3">
                             <label for="location" class="form-label">Location</label>
-                            <input type="text" id="location" name="location" class="form-control" value="<?= htmlspecialchars($expense['location']); ?>" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
+                            <input type="text" id="location" name="location" class="form-control" value="<?= htmlspecialchars($expense['location'] ?? ''); ?>" <?= $is_tools ? 'disabled' : 'required' ?>>
                         </div>
 
                         <div class="mb-3">
                             <label for="store" class="form-label">Store</label>
-                            <input type="text" id="store" name="store" class="form-control" value="<?= htmlspecialchars($expense['store']); ?>" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
+                            <input type="text" id="store" name="store" class="form-control" value="<?= htmlspecialchars($expense['store'] ?? ''); ?>" <?= $is_tools ? 'disabled' : 'required' ?>>
                         </div>
 
                         <div class="mb-3">
@@ -145,6 +151,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="number" id="amount" name="amount" step="0.01" class="form-control" value="<?= htmlspecialchars($expense['amount']); ?>" required>
                         </div>
 
+                        <?php if (!$is_tv): ?>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="submitted" name="submitted" <?= $expense['submitted'] ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="submitted">Submitted</label>
+                        </div>
+                        <?php endif; ?>
+
                         <div class="d-flex justify-content-start gap-2">
                             <button type="button" class="btn btn-secondary" onclick="window.history.back()">Back</button>
                             <button type="submit" class="btn btn-primary">Update</button>
@@ -155,32 +168,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
-
-<script>
-const divisionSelect = document.getElementById('division');
-const companyField = document.getElementById('company');
-const storeField = document.getElementById('store');
-const locationField = document.getElementById('location');
-
-function toggleFields() {
-    // Tools or Recharge disables some fields, except Labour
-    if (divisionSelect.value === 'Recharge' || <?= $is_tools ? 'true' : 'false' ?>) {
-        if (!<?= $is_labour ? 'true' : 'false' ?>) {
-            companyField.disabled = true;
-            storeField.disabled = true;
-            locationField.disabled = true;
-        }
-    } else {
-        companyField.disabled = false;
-        storeField.disabled = false;
-        locationField.disabled = false;
-    }
-}
-
-toggleFields();
-divisionSelect.addEventListener('change', toggleFields);
-</script>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

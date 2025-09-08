@@ -52,10 +52,11 @@ $other_expenses  = get_expenses($conn, 'other_expense', $from_date, $to_date, $r
 $tools_expenses  = get_expenses($conn, 'tools_expense', $from_date, $to_date, $region_filter, $username);
 $labour_expenses = get_expenses($conn, 'labour_expense', $from_date, $to_date, $region_filter, $username);
 $accessories_expense = get_expenses($conn, 'accessories_expense', $from_date, $to_date, $region_filter, $username);
+$tv_expense = get_expenses($conn, 'tv_expense', $from_date, $to_date, $region_filter, $username);
 
 // Total spend
 $total_amount = 0;
-foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses, $accessories_expense] as $expenses) {
+foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses, $accessories_expense, $tv_expense] as $expenses) {
     while($row = $expenses->fetch_assoc()) {
         $total_amount += $row['amount'];
     }
@@ -202,6 +203,7 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                     'Tools'=>$tools_expenses,
                     'Labour'=>$labour_expenses,
                     'Accessories'=>$accessories_expense,
+                    'tv'=>$tv_expense,
                 ] as $type => $expenses) {
                     while($row = $expenses->fetch_assoc()) {
                         $row['type'] = $type;

@@ -16,7 +16,8 @@ $tables = [
     'other_expense',
     'tools_expense',
     'labour_expense',
-    'accessories_expense'
+    'accessories_expense',
+    'tv_expense' // ✅ new table for TV expenses
 ];
 
 // Total Expenses
@@ -64,6 +65,7 @@ $balance_class = $balance >= 0 ? 'positive' : 'negative';
 <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/vision.ico">
 <style>
+/* same styling you already had */
 body {
     background: linear-gradient(120deg, #f0f4ff, #f9f9f9);
     font-family: Arial, sans-serif;
@@ -81,13 +83,9 @@ body::before {
     z-index: 0;
 }
 .container, .navbar, footer { position: relative; z-index: 1; }
-
-/* Navbar */
 .navbar { background: linear-gradient(90deg, #4f46e5, #ec4899); }
 .navbar-brand span { color: #fff; font-weight: bold; font-size: 1.2rem; }
 .text-white { color: #fff !important; }
-
-/* Hero */
 .hero {
     background: linear-gradient(135deg, #4f46e5, #ec4899);
     color: #fff; border-radius: 12px;
@@ -96,8 +94,6 @@ body::before {
 }
 .hero h1 { font-size: 2rem; }
 .hero p { font-size: 1rem; }
-
-/* Cards */
 .card-summary {
     background: #fff; border-radius: 12px;
     padding: 20px; color: #333;
@@ -113,8 +109,6 @@ body::before {
 }
 .card-expense i { font-size: 2rem; margin-bottom: 10px; }
 .card-expense:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,.2); }
-
-/* Expense colors */
 .fuel { background: linear-gradient(135deg, #f97316, #fcd34d); }
 .food { background: linear-gradient(135deg, #10b981, #6ee7b7); }
 .room { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
@@ -122,8 +116,8 @@ body::before {
 .tools { background: linear-gradient(135deg, #f43f5e, #fb7185); }
 .labour { background: linear-gradient(135deg, #f59e0b, #fcd34d); }
 .accessories { background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
-
-/* Footer */
+/* ✅ TV card color */
+.tv { background: linear-gradient(135deg, #6366f1, #a5b4fc); }
 footer { background: #ecf0f1; color: #333; padding: 15px 0; text-align: center; }
 .positive { color: green; }
 .negative { color: red; }
@@ -229,6 +223,14 @@ footer { background: #ecf0f1; color: #333; padding: 15px 0; text-align: center; 
                 <p>SAR <?php echo number_format($category_totals['accessories_expense'], 2); ?></p>
             </div>
         </div>
+        <!-- ✅ New TV Expense Card -->
+        <div class="col-md-3">
+            <div class="card-expense tv" onclick="openPopup('tvPopup')">
+                <i class="bi bi-tv"></i>
+                <h5>📺 TV</h5>
+                <p>SAR <?php echo number_format($category_totals['tv_expense'], 2); ?></p>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -247,7 +249,9 @@ flatpickr("#foodDate", { dateFormat: "d-m-Y" });
 flatpickr("#roomDate", { dateFormat: "d-m-Y" });
 flatpickr("#otherDate", { dateFormat: "d-m-Y" });
 flatpickr("#toolsDate", { dateFormat: "d-m-Y" });
-flatpickr("#accessoriesDate",{ dateFormat:"d-m-Y"});
+flatpickr("#accessoriesDate", { dateFormat: "d-m-Y" });
+flatpickr("#tvDate", { dateFormat: "d-m-Y" }); // ✅ for TV popup
+
 function openPopup(id){ document.getElementById(id).classList.add('active'); }
 function closePopup(id){ document.getElementById(id).classList.remove('active'); }
 window.onclick = function(e){ document.querySelectorAll('.popup').forEach(p=>{ if(e.target==p) p.classList.remove('active'); }); }

@@ -387,6 +387,100 @@
   </div>
 </div>
 
+<!-- TV Popup -->
+<div class="popup" id="tvPopup">
+  <div class="popup-content">
+    <span class="close-btn" onclick="closePopup('tvPopup')">&times;</span>
+    <h2>Add TV Expense</h2>
+    <form action="add_tv.php" method="POST" enctype="multipart/form-data">
+      
+      <label> Date : </label>
+      <input type="date" name="date" id="tvDate" placeholder="dd-mm-yyy" required>
+
+      <label>Division</label>
+      <select name ="division" required>
+        <option value="">-- Select Division --</option>
+        <option value="Sales">Sales</option>
+        <option value="Project">Project</option>
+        <option value="Service">Service</option>
+        <option value="Installation">Installation</option>
+      </select>
+
+      <label>Region</label>
+      <select name="region" required>
+        <option value="">-- Select Region--</option>
+        <option value="Dammam">Dammam</option>
+        <option value="Riyadh">Riyadh</option>
+        <option value="Jeddah">Jeddah</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Company:</label>
+      <select name="company" required>
+        <option value="">-- Select company --</option>
+        <option value="Redtag">Redtag</option>
+        <option value="Landmark">Landmark</option>
+        <option value="Apparel">Apparel</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Store:</label>
+      <input type="text" name="store" required>
+
+      <label>Location:</label>
+      <input type="text" name="location" required>
+
+      <div>
+        <label>TV:</label><br>
+        <input type="radio" name="tv_type" value="NEW" onclick="toggleTVFields('NEW')" required> New
+        <input type="radio" name="tv_type" value="REPAIRED" onclick="toggleTVFields('REPAIRED')"> Repaired
+      </div>
+      <br>
+
+      <!-- Description Fields -->
+      <div style="margin-bottom: 10px;">
+        <label>Description:</label>
+        <textarea name="description" rows="3" style="width:100%;" required></textarea>
+      </div>
+
+      <div id="updatedDescriptionField" style="display:none; margin-bottom: 10px;">
+        <label> Old TV Description:</label>
+        <textarea name="updated_description" rows="3" style="width:100%;"></textarea>
+      </div>
+
+      <label>Amount:</label>
+      <input type="number" name="amount" step="0.01" required>
+
+      <label>Bill:</label>
+      <select name="bill" required>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+
+      <button type="submit" style="margin-top: 10px;">Save</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleTVFields(type) {
+  if (type === 'NEW') {
+    document.getElementById("updatedDescriptionField").style.display = "block";
+  } else {
+    document.getElementById("updatedDescriptionField").style.display = "none";
+  }
+}
+</script>
+
+<script>
+function toggleTVFields(type) {
+  if (type === 'NEW') {
+    document.getElementById("updatedDescriptionField").style.display = "block";
+  } else {
+    document.getElementById("updatedDescriptionField").style.display = "none";
+  }
+}
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
@@ -396,6 +490,8 @@
     flatpickr("#roomDate", { dateFormat: "d-m-Y" });
     flatpickr("#otherDate", { dateFormat: "d-m-Y" });
     flatpickr("#labourDate", { dateFormat: "d-m-Y" });
+    flatpickr("#accessoriesDate", { dateFormat: "d-m-Y" });
+    flatpickr("#tvDate", { dateFormat: "d-m-Y" });
 
 
     // Popup close function
