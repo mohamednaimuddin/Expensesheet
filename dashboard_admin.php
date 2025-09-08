@@ -171,17 +171,24 @@ footer {
                 </div>
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="card card-summary text-center shadow-sm h-100" 
+                 onclick="window.location.href='tv_report.php'" style="cursor:pointer;">
+                <div class="card-body">
+                    <h5 class="card-title">📺 TV Report</h5>
+                </div>
+            </div>
+        </div>
         <div class="col-md-4">
-    <div class="card card-summary text-center shadow-sm h-100" onclick="window.location.href='pending_bills.php'" style="cursor:pointer;">
-        <div class="card-body">
-            <h5 class="card-title">🕒 Pending Bills</h5>
-            <p class="card-text">
-                <?= $pending_bill_count ?> pending without a bill.
-            </p>
+            <div class="card card-summary text-center shadow-sm h-100" onclick="window.location.href='pending_bills.php'" style="cursor:pointer;">
+                <div class="card-body">
+                    <h5 class="card-title">🕒 Pending Bills</h5>
+                    <p class="card-text"><?= $pending_bill_count ?> pending without a bill.
+                </p>
+            </div>
         </div>
     </div>
 </div>
-    </div>
 
     <!-- Users Cards -->
     <h2 class="mb-3">All Users</h2>
