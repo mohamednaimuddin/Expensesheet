@@ -23,7 +23,8 @@ $tables = [
     'Other'       => 'other_expense',
     'Tools'       => 'tools_expense',
     'Labour'      => 'labour_expense',
-    'Accessories' => 'accessories_expense'
+    'Accessories' => 'accessories_expense',
+    'tv'          => 'tv_expense'
 ];
 
 if (!array_key_exists($type, $tables)) {
