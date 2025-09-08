@@ -89,6 +89,18 @@ if ($from_date && $to_date) {
 $adv_query->execute();
 $adv_result = $adv_query->get_result();
 $total_adv = $adv_result->fetch_assoc()['total_adv'] ?? 0;
+
+// Fetch latest carrydown entry for balance calculation (not displayed)
+if ($from_date && $to_date) {
+    $cd_query = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 1");
+    $cd_query->bind_param("sss", $username, $from_date, $to_date);
+} else {
+    $cd_query = $conn->prepare("SELECT amount FROM carry_down WHERE username=? ORDER BY created_at DESC LIMIT 1");
+    $cd_query->bind_param("s", $username);
+}
+$cd_query->execute();
+$cd_result = $cd_query->get_result();
+$total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
 ?>
 
 <!DOCTYPE html>
@@ -243,7 +255,7 @@ $total_adv = $adv_result->fetch_assoc()['total_adv'] ?? 0;
             <div class="p-2 border bg-white text-center"><strong>Spend:</strong> SAR <?php echo number_format($total_amount,2); ?></div>
         </div>
         <div class="col-12 col-md-4">
-            <div class="p-2 border bg-white text-center"><strong>Balance:</strong> SAR <?php echo number_format($total_adv-$total_amount,2); ?></div>
+            <div class="p-2 border bg-white text-center"><strong>Balance:</strong> SAR <?php echo number_format(($total_adv + $total_carry) - $total_amount,2); ?></div>
         </div>
     </div>
 

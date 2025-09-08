@@ -19,7 +19,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $amount = floatval($_POST['amount']);
     $bill = trim($_POST['bill']); // If uploading, handle with $_FILES
     $status = "Pending"; // default status when added
-    $submitted = "Yes";  // mark as submitted when user adds
+    $submitted = "0";  // mark as submitted when user adds
 
     $stmt = $conn->prepare("INSERT INTO accessories_expense 
         (username, date, division, region, company, store, location, description, amount, bill, created_at, status, submitted) 

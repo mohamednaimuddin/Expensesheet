@@ -42,8 +42,15 @@ $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $total_adv = $row['total_adv'] ?? 0;
 
-// Balance
-$balance = $total_adv - $total_amount;
+// Latest Carrydown
+$cd_query = $conn->prepare("SELECT amount FROM carry_down WHERE username=? ORDER BY created_at DESC LIMIT 1");
+$cd_query->bind_param("s", $username);
+$cd_query->execute();
+$cd_result = $cd_query->get_result();
+$total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
+
+// Balance including carrydown
+$balance = ($total_adv + $total_carry) - $total_amount;
 $balance_class = $balance >= 0 ? 'positive' : 'negative';
 ?>
 <!DOCTYPE html>
