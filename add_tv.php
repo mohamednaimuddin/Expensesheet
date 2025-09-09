@@ -19,14 +19,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $location = $_POST['location'];
     $tv_type = $_POST['tv_type'];
     $description = $_POST['description'] ?? '';
-    $updated_description = ($_POST['tv_type'] === 'New') ? ($_POST['updated_description'] ?? '') : NULL;
+    $updated_description = '';
+if (isset($_POST['updated_description']) && !empty($_POST['updated_description'])) {
+    $updated_description = $_POST['updated_description'];
+}
     $amount = $_POST['amount'];
     $bill = $_POST['bill'] ?? 'No';
 
     // Prepare and execute insertion
     $stmt = $conn->prepare("INSERT INTO tv_expense (username, date, division, region, company, store, location, tv_type, description, updated_description, amount, bill) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->bind_param(
-        "sssssssssdss",
+        "ssssssssssss",
         $username,
         $date,
         $division,

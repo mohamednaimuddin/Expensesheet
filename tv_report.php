@@ -142,7 +142,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; fon
                 <th>Location</th>
                 <th>Store</th>
                 <th>New/ Repaired</th>
-                <th>Description1</th>
+                <th>Description</th>
                 <th>Old TV Description</th>
                 <th>Amount</th>
                 <th>Remark</th>
