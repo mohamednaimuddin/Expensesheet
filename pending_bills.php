@@ -20,6 +20,7 @@ if (!empty($_POST['update_bill']) && isset($_POST['id'], $_POST['category'])) {
         'Tools'       => 'tools_expense',
         'Labour'      => 'labour_expense',
         'Accessories' => 'accessories_expense',
+        'Tv'          => 'tv_expense',
     ];
 
     if (isset($table_map[$category])) {
@@ -104,6 +105,13 @@ $query = "
     SELECT 'Accessories' AS expense_category, id, date, division, company, store, location, description, amount, bill
     FROM accessories_expense
     WHERE (bill IS NULL OR TRIM(bill)='' OR LOWER(bill) IN ('no','pending','n','0')) $filter_sql
+
+    UNION ALL
+
+    SELECT 'Tv' AS expense_category, id, date, division, company, store, location, description, amount, bill
+    FROM tv_expense
+    WHERE (bill IS NULL OR TRIM(bill)='' OR LOWER(bill) IN ('no','pending','n','0')) $filter_sql
+
 
     ORDER BY date ASC
 ";
