@@ -128,6 +128,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; fon
         <button class="btn btn-outline-primary btn-sm" type="submit">Search</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='tv_report.php'">Clear</button>
         <button class="btn btn-outline-success btn-sm" type="button" onclick="window.print()">Print</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button>
     </div>
 </form>
 
