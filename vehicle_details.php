@@ -1,0 +1,216 @@
+<?php
+session_start();
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    header("Location: index.php");
+    exit();
+}
+
+include 'config.php';
+$username = $_SESSION['username'];
+
+// Validate vehicle ID
+if (!isset($_GET['id']) || empty($_GET['id'])) {
+    die("Vehicle not specified!");
+}
+$vehicle_id = $_GET['id'];
+
+// Fetch vehicle details
+$stmt = $conn->prepare("SELECT * FROM vehicle WHERE id=?");
+if (!$stmt) die("Prepare failed: " . $conn->error);
+$stmt->bind_param("i", $vehicle_id);
+$stmt->execute();
+$vehicle_result = $stmt->get_result();
+if ($vehicle_result->num_rows === 0) die("Vehicle not found!");
+$vehicle = $vehicle_result->fetch_assoc();
+
+// Fetch vehicle expenses
+$stmt = $conn->prepare("SELECT * FROM vehicle_expense WHERE vehicle_id=? ORDER BY expense_date ASC");
+if (!$stmt) die("Prepare failed: " . $conn->error);
+$stmt->bind_param("i", $vehicle_id);
+$stmt->execute();
+$expense_result = $stmt->get_result();
+
+$all_expenses = [];
+$total_expense = 0;
+while($row = $expense_result->fetch_assoc()){
+    $all_expenses[] = $row;
+    $total_expense += $row['amount'];
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vehicle Expense | VisionAngles</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"> 
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="icon" type="image/png" href="assets/vision.ico">
+<style>
+.table { border:2px solid black; border-collapse:collapse; }
+th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
+@media print {
+    body { -webkit-print-color-adjust: exact; margin:10mm; font-size:12px; background:#fff; }
+    body::before { content:""; position:fixed; top:0; left:0; width:100%; height:100%; background:url('assets/vision1.png') no-repeat center center; background-size:50%; opacity:0.05; z-index:9999; pointer-events:none; }
+    table { width:100%; border-collapse:collapse; border:2px solid black; }
+    th, td { border:0.5px solid black; font-size:11px; padding:4px 6px; }
+    button, input, select, nav, .modal, .actions-col { display:none !important; }
+    .report-footer { display:flex; justify-content:space-between; margin-top:20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #4f46e5, #ec4899);">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center text-white" href="dashboard_admin.php">
+      <img src="assets/visionangles.png" alt="Logo" style="height:40px; margin-right:10px;">
+      Vision Angles Security EST.
+    </a>
+    <div class="d-flex ms-auto align-items-center">
+      <span class="text-white me-3">👤 <?= ucfirst($username) ?></span>
+      <a href="vehicle.php" class="btn btn-danger">Back</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-3" id="printSection">
+
+  <!-- Logo Center + Heading Center -->
+  <div class="text-center mb-3">
+      <img src="assets/visionlogo.jpg" alt="Company Logo" style="height:80px;">
+      <h2 class="mt-2">Vehicle Expense</h2>
+  </div>
+
+  <!-- Print/Add Buttons Top Right -->
+  <div class="d-flex justify-content-end mb-3 gap-2">
+      <button class="btn btn-success" onclick="printReport()">🖨️ Print</button>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExpenseModal">➕ Add Vehicle Expense</button>
+  </div>
+
+  <!-- Vehicle Details -->
+  <div class="mb-3">
+      <strong>Brand:</strong> <?= htmlspecialchars($vehicle['brand']) ?> |
+      <strong>Model:</strong> <?= htmlspecialchars($vehicle['model']) ?> |
+      <strong>Number Plate:</strong> <?= htmlspecialchars($vehicle['number_plate']) ?> |
+      <strong>Model Year:</strong> <?= htmlspecialchars($vehicle['model_year']) ?> |
+      <strong>Owner:</strong> <?= htmlspecialchars($vehicle['vehicle_owner']) ?> |
+      <strong>Date of Purchase:</strong> <?= htmlspecialchars($vehicle['date_purchase']) ?> |
+      <strong>Insurance Exp:</strong> <?= htmlspecialchars($vehicle['insurance_exp']) ?>
+  </div>
+
+  <!-- Expenses Table -->
+  <table class="table table-bordered">
+      <thead style="background-color:#f0f0f0;">
+          <tr>
+              <th>SI</th>
+              <th>Date</th>
+              <th>Region</th>
+              <th>Service</th>
+              <th>KM Reading</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Bill</th>
+              <th class="actions-col">Actions</th>
+          </tr>
+      </thead>
+      <tbody>
+          <?php if(count($all_expenses) > 0): $i=1; foreach($all_expenses as $row): ?>
+          <tr>
+              <td><?= $i++ ?></td>
+              <td><?= htmlspecialchars($row['expense_date']) ?></td>
+              <td><?= htmlspecialchars($row['region']) ?></td>
+              <td><?= htmlspecialchars($row['service']) ?></td>
+              <td><?= htmlspecialchars($row['km_reading']) ?></td>
+              <td><?= htmlspecialchars($row['description']) ?></td>
+              <td>SAR <?= number_format($row['amount'],2) ?></td>
+              <td><?= htmlspecialchars($row['bill']) ?></td>
+              <td class="actions-col">
+                  <a href="edit_vehicle_expense.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
+                  <a href="delete_vehicle_expense.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm"
+                    onclick="return confirm('Delete this expense?')">Delete</a>
+              </td>
+          </tr>
+          <?php endforeach; else: ?>
+          <tr><td colspan="9" class="text-center">No expenses found.</td></tr>
+          <?php endif; ?>
+      </tbody>
+      <tfoot>
+          <tr>
+              <td colspan="6" class="text-end fw-bold">Total Expense:</td>
+              <td colspan="3">SAR <?= number_format($total_expense,2) ?></td>
+          </tr>
+      </tfoot>
+  </table>
+
+  <div class="report-footer">
+      <div>Prepared By: <?= ucfirst($username) ?></div>
+      <div>Verified By: </div>
+      <div>Approved By: </div>
+  </div>
+
+</div>
+
+<!-- Add Expense Modal -->
+<div class="modal fade" id="addExpenseModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="add_vehicle_expense.php">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Vehicle Expense</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" name="vehicle_id" value="<?= $vehicle_id ?>">
+            <div class="mb-2"><label>Date</label><input type="date" name="expense_date" class="form-control" required></div>
+            <div class="mb-2"><label>Region</label>
+                <select name="region" class="form-select" required>
+                    <option>Dammam</option>
+                    <option>Riyadh</option>
+                    <option>Jeddah</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div class="mb-2"><label>Service</label>
+                <select name="service" class="form-select" required>
+                    <option>Engine Oil</option>
+                    <option>Gear Oil</option>
+                    <option>Tyre</option>
+                    <option>Brake Pad</option>
+                    <option>Brake Oil</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div class="mb-2"><label>KM Reading</label><input type="number" name="km_reading" class="form-control" required></div>
+            <div class="mb-2"><label>Description</label><textarea name="description" class="form-control" required></textarea></div>
+            <div class="mb-2"><label>Amount</label><input type="number" step="0.01" name="amount" class="form-control" required></div>
+            <div class="mb-2"><label>Bill</label>
+                <select name="bill" class="form-select" required>
+                    <option>Yes</option>
+                    <option>No</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="submit" class="btn btn-success">Save</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function printReport(){
+    var printContents = document.getElementById('printSection').innerHTML;
+    var originalContents = document.body.innerHTML;
+    document.body.innerHTML = printContents;
+    window.print();
+    document.body.innerHTML = originalContents;
+    location.reload();
+}
+</script>
+</body>
+</html>
