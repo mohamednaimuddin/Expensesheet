@@ -92,7 +92,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; }
 
   <!-- Vehicle Table -->
   <div class="table-responsive">
-    <table class="table align-middle">
+    <table class="table align-middle" id="vehicleTable">
       <thead style="background-color:grey; color:white;">
         <tr>
           <th>SI</th>
@@ -114,7 +114,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; }
       </thead>
       <tbody>
         <?php if($vehicles->num_rows > 0): $i=1; while($row = $vehicles->fetch_assoc()): ?>
-        <tr>
+        <tr class="vehicle-row" data-id="<?= $row['id'] ?>" style="cursor:pointer;">
           <td><?= $i++ ?></td>
           <td><?= htmlspecialchars($row['brand']) ?></td>
           <td><?= htmlspecialchars($row['model']) ?></td>
@@ -142,8 +142,22 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; }
         <?php endif; ?>
       </tbody>
     </table>
-  </div>
 </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = document.querySelectorAll('.vehicle-row');
+    rows.forEach(row => {
+        row.addEventListener('click', function(e) {
+            // Prevent navigation if user clicks on Edit/Delete buttons
+            if(e.target.tagName !== 'A' && e.target.tagName !== 'BUTTON' && !e.target.closest('a') && !e.target.closest('button')) {
+                const vehicleId = this.dataset.id;
+                window.location.href = 'vehicle_details.php?id=' + vehicleId;
+            }
+        });
+    });
+});
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
