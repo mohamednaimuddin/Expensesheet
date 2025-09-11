@@ -179,6 +179,14 @@ footer {
                 </div>
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="card card-summary text-center shadow-sm h-100" 
+                 onclick="window.location.href='vehicle.php'" style="cursor:pointer;">
+                <div class="card-body">
+                    <h5 class="card-title">🚗 Vehicle</h5>
+                </div>
+            </div>
+        </div>
         <div class="col-md-4">
             <div class="card card-summary text-center shadow-sm h-100" onclick="window.location.href='pending_bills.php'" style="cursor:pointer;">
                 <div class="card-body">
