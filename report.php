@@ -16,12 +16,15 @@ $region_filter = $_GET['region'] ?? 'All';
 
 // Function to fetch expenses per category
 function get_expenses($conn, $table, $from_date, $to_date, $region_filter, $username) {
-    $sql = "SELECT *, submitted FROM $table WHERE username=?";
+    // Handle vehicle_expense separately (uses date instead of date)
+    $date_col = ($table === "vehicle_expense") ? "date" : "date";
+
+    $sql = "SELECT *, $date_col AS date, submitted FROM $table WHERE username=?";
     $params = [$username];
     $types = "s";
 
     if ($from_date && $to_date) {
-        $sql .= " AND `date` BETWEEN ? AND ?";
+        $sql .= " AND $date_col BETWEEN ? AND ?";
         $types .= "ss";
         $params[] = $from_date;
         $params[] = $to_date;
@@ -33,7 +36,7 @@ function get_expenses($conn, $table, $from_date, $to_date, $region_filter, $user
         $params[] = $region_filter;
     }
 
-    $sql .= " ORDER BY `date` DESC";
+    $sql .= " ORDER BY $date_col DESC";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
@@ -44,7 +47,7 @@ function get_expenses($conn, $table, $from_date, $to_date, $region_filter, $user
     return $stmt->get_result();
 }
 
-// Fetch all expense categories including Labour
+// Fetch all expense categories including Vehicle
 $fuel_expenses   = get_expenses($conn, 'fuel_expense', $from_date, $to_date, $region_filter, $username);
 $food_expenses   = get_expenses($conn, 'food_expense', $from_date, $to_date, $region_filter, $username);
 $room_expenses   = get_expenses($conn, 'room_expense', $from_date, $to_date, $region_filter, $username);
@@ -52,11 +55,12 @@ $other_expenses  = get_expenses($conn, 'other_expense', $from_date, $to_date, $r
 $tools_expenses  = get_expenses($conn, 'tools_expense', $from_date, $to_date, $region_filter, $username);
 $labour_expenses = get_expenses($conn, 'labour_expense', $from_date, $to_date, $region_filter, $username);
 $accessories_expense = get_expenses($conn, 'accessories_expense', $from_date, $to_date, $region_filter, $username);
-$tv_expense = get_expenses($conn, 'tv_expense', $from_date, $to_date, $region_filter, $username);
+$tv_expense      = get_expenses($conn, 'tv_expense', $from_date, $to_date, $region_filter, $username);
+$vehicle_expense = get_expenses($conn, 'vehicle_expense', $from_date, $to_date, $region_filter, $username);
 
 // Total spend
 $total_amount = 0;
-foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses, $accessories_expense, $tv_expense] as $expenses) {
+foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses, $accessories_expense, $tv_expense, $vehicle_expense] as $expenses) {
     while($row = $expenses->fetch_assoc()) {
         $total_amount += $row['amount'];
     }
@@ -203,7 +207,8 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                     'Tools'=>$tools_expenses,
                     'Labour'=>$labour_expenses,
                     'Accessories'=>$accessories_expense,
-                    'tv'=>$tv_expense,
+                    'TV'=>$tv_expense,
+                    'Vehicle'=>$vehicle_expense,
                 ] as $type => $expenses) {
                     while($row = $expenses->fetch_assoc()) {
                         $row['type'] = $type;
@@ -222,11 +227,11 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                         <td>{$si}</td>
                         <td>{$row['date']}</td>
                         <td>{$row['type']}</td>
-                        <td>{$row['division']}</td>
-                        <td>{$row['company']}</td>
-                        <td>{$row['location']}</td>
-                        <td>{$row['store']}</td>
-                        <td>{$row['description']}</td>
+                        <td>".($row['division'] ?? '')."</td>
+                        <td>".($row['company'] ?? '')."</td>
+                        <td>".($row['location'] ?? '')."</td>
+                        <td>".($row['store'] ?? '')."</td>
+                        <td>".($row['service'] ?? '')."</td>
                         <td>{$row['amount']}</td>
                         <td class='action-buttons'>";
                     

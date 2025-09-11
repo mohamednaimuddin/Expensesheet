@@ -23,7 +23,7 @@ $vehicle_id = $expense['vehicle_id'];
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $expense_date = $_POST['expense_date'];
+    $date = $_POST['date'];
     $region = $_POST['region'];
     $service = $_POST['service'];
     $km_reading = $_POST['km_reading'];
@@ -31,8 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $amount = $_POST['amount'];
     $bill = $_POST['bill'];
 
-    $stmt = $conn->prepare("UPDATE vehicle_expense SET expense_date=?, region=?, service=?, km_reading=?, description=?, amount=?, bill=? WHERE id=?");
-    $stmt->bind_param("sssisdsi", $expense_date, $region, $service, $km_reading, $description, $amount, $bill, $expense_id);
+    $stmt = $conn->prepare("UPDATE vehicle_expense SET date=?, region=?, service=?, km_reading=?, description=?, amount=?, bill=? WHERE id=?");
+    $stmt->bind_param("sssisdsi", $date, $region, $service, $km_reading, $description, $amount, $bill, $expense_id);
     $stmt->execute();
 
     header("Location: vehicle_details.php?id=$vehicle_id");
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <form method="post">
         <div class="mb-2">
           <label>Date</label>
-          <input type="date" name="expense_date" class="form-control" required value="<?= htmlspecialchars($expense['expense_date']) ?>">
+          <input type="date" name="date" class="form-control" required value="<?= htmlspecialchars($expense['date']) ?>">
         </div>
         <div class="mb-2">
           <label>Region</label>

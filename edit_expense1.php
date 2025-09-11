@@ -19,14 +19,15 @@ if (!is_numeric($id)) die("Invalid ID.");
 
 // Allowed table mapping
 $table_map = [
-    'food_expense' => 'food_expense',
-    'fuel_expense' => 'fuel_expense',
-    'other_expense' => 'other_expense',
-    'room_expense' => 'room_expense',
-    'tools_expense' => 'tools_expense',
-    'labour_expense' => 'labour_expense',
+    'food_expense'        => 'food_expense',
+    'fuel_expense'        => 'fuel_expense',
+    'other_expense'       => 'other_expense',
+    'room_expense'        => 'room_expense',
+    'tools_expense'       => 'tools_expense',
+    'labour_expense'      => 'labour_expense',
     'accessories_expense' => 'accessories_expense',
-    'tv_expense' => 'tv_expense'
+    'tv_expense'          => 'tv_expense',
+    'vehicle_expense'     => 'vehicle_expense'
 ];
 
 $table_key = strtolower($table_param);
@@ -35,9 +36,10 @@ if (!array_key_exists($table_key, $table_map)) die("Invalid table.");
 $table = $table_map[$table_key];
 
 // Flags
-$is_tools  = ($table === 'tools_expense');
-$is_labour = ($table === 'labour_expense');
-$is_tv     = ($table === 'tv_expense');
+$is_tools   = ($table === 'tools_expense');
+$is_labour  = ($table === 'labour_expense');
+$is_tv      = ($table === 'tv_expense');
+$is_vehicle = ($table === 'vehicle_expense');
 
 // Fetch expense
 $sql = "SELECT * FROM $table WHERE id=? AND username=?";
@@ -51,27 +53,28 @@ if (!$expense) die("Expense not found.");
 
 // Handle POST update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $date = $_POST['date'] ?? '';
-    $division = $_POST['division'] ?? '';
-    $company = $_POST['company'] ?? '';
-    $location = $_POST['location'] ?? '';
-    $store = $_POST['store'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $amount = $_POST['amount'] ?? 0;
+    if ($is_vehicle) {
+        // Vehicle expense: only update service + amount
+        $service = $_POST['service'] ?? '';
+        $amount  = $_POST['amount'] ?? 0;
 
-    if (!is_numeric($amount)) die("Invalid amount.");
+        if (!is_numeric($amount)) die("Invalid amount.");
 
-    // Update SQL based on type
-    if ($is_tv || $is_tools || $division === 'Recharge') {
-        // For TV, Tools, or Recharge: update only editable fields
-        $update_sql = "UPDATE $table SET date=?, division=?, company=?, location=?, store=?, description=?, amount=? WHERE id=? AND username=?";
+        $update_sql = "UPDATE $table SET service=?, amount=? WHERE id=? AND username=?";
         $update_stmt = $conn->prepare($update_sql);
-        $update_stmt->bind_param(
-            "ssssssdsi",
-            $date, $division, $company, $location, $store, $description, $amount, $id, $_SESSION['username']
-        );
+        $update_stmt->bind_param("sdis", $service, $amount, $id, $_SESSION['username']);
     } else {
         // Other expenses
+        $date        = $_POST['date'] ?? '';
+        $division    = $_POST['division'] ?? '';
+        $company     = $_POST['company'] ?? '';
+        $location    = $_POST['location'] ?? '';
+        $store       = $_POST['store'] ?? '';
+        $description = $_POST['description'] ?? '';
+        $amount      = $_POST['amount'] ?? 0;
+
+        if (!is_numeric($amount)) die("Invalid amount.");
+
         $update_sql = "UPDATE $table SET date=?, division=?, company=?, location=?, store=?, description=?, amount=? WHERE id=? AND username=?";
         $update_stmt = $conn->prepare($update_sql);
         $update_stmt->bind_param(
@@ -104,51 +107,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card shadow-sm">
                 <div class="card-body">
                     <h3 class="card-title text-center mb-4">Edit Expense</h3>
+
                     <form method="post">
-                        <div class="mb-3">
-                            <label class="form-label">Date</label>
-                            <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($expense['date']); ?>" required>
-                        </div>
+                        <?php if ($is_vehicle): ?>
+                            <div class="mb-3">
+                                <label class="form-label">Service</label>
+                                <select name="service" class="form-select" required>
+                                    <?php foreach(['Engine Oil','Gear Oil','Tyre','Brake Pad','Brake Oil','Fuel Injection','Other'] as $srv): ?>
+                                        <option value="<?= $srv ?>" <?= $expense['service']==$srv?'selected':'' ?>><?= $srv ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Division</label>
-                            <select name="division" id="division" class="form-select" <?= $is_tools ? 'disabled' : 'required' ?>>
-                                <option value="">-- Select Division --</option>
-                                <?php foreach(['Sales','Project','Service','Installation','Recharge'] as $div): ?>
-                                    <option value="<?= $div ?>" <?= $expense['division']==$div?'selected':'' ?>><?= $div ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">Amount (SAR)</label>
+                                <input type="number" name="amount" step="0.01" class="form-control" value="<?= htmlspecialchars($expense['amount']); ?>" required>
+                            </div>
+                        <?php else: ?>
+                            <div class="mb-3">
+                                <label class="form-label">Date</label>
+                                <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($expense['date']); ?>" required>
+                            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Company</label>
-                            <select name="company" id="company" class="form-select" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
-                                <option value="">-- Select Company --</option>
-                                <?php foreach(['Redtag','Landmark','Apparel','Other'] as $comp): ?>
-                                    <option value="<?= $comp ?>" <?= $expense['company']==$comp?'selected':'' ?>><?= $comp ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">Division</label>
+                                <select name="division" id="division" class="form-select" <?= $is_tools ? 'disabled' : 'required' ?>>
+                                    <option value="">-- Select Division --</option>
+                                    <?php foreach(['Sales','Project','Service','Installation','Recharge'] as $div): ?>
+                                        <option value="<?= $div ?>" <?= $expense['division']==$div?'selected':'' ?>><?= $div ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Location</label>
-                            <input type="text" name="location" id="location" class="form-control" value="<?= htmlspecialchars($expense['location']); ?>" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">Company</label>
+                                <select name="company" id="company" class="form-select" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
+                                    <option value="">-- Select Company --</option>
+                                    <?php foreach(['Redtag','Landmark','Apparel','Other'] as $comp): ?>
+                                        <option value="<?= $comp ?>" <?= $expense['company']==$comp?'selected':'' ?>><?= $comp ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Store</label>
-                            <input type="text" name="store" id="store" class="form-control" value="<?= htmlspecialchars($expense['store']); ?>" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">Location</label>
+                                <input type="text" name="location" id="location" class="form-control" value="<?= htmlspecialchars($expense['location']); ?>" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
+                            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Description</label>
-                            <textarea name="description" class="form-control" rows="3" required><?= htmlspecialchars($expense['description']); ?></textarea>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">Store</label>
+                                <input type="text" name="store" id="store" class="form-control" value="<?= htmlspecialchars($expense['store']); ?>" <?= ($is_tools || $expense['division']=='Recharge') && !$is_labour ? 'disabled' : 'required' ?>>
+                            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Amount (SAR)</label>
-                            <input type="number" name="amount" step="0.01" class="form-control" value="<?= htmlspecialchars($expense['amount']); ?>" required>
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea name="description" class="form-control" rows="3" required><?= htmlspecialchars($expense['description']); ?></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Amount (SAR)</label>
+                                <input type="number" name="amount" step="0.01" class="form-control" value="<?= htmlspecialchars($expense['amount']); ?>" required>
+                            </div>
+                        <?php endif; ?>
 
                         <div class="d-flex justify-content-start gap-2">
                             <button type="button" class="btn btn-secondary" onclick="window.history.back()">Back</button>
@@ -160,31 +180,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
-
-<script>
-// Toggle fields based on division
-const divisionSelect = document.getElementById('division');
-const companyField = document.getElementById('company');
-const storeField = document.getElementById('store');
-const locationField = document.getElementById('location');
-
-function toggleFields() {
-    if (divisionSelect.value === 'Recharge' || <?= $is_tools ? 'true' : 'false' ?>) {
-        if (!<?= $is_labour ? 'true' : 'false' ?>) {
-            companyField.disabled = true;
-            storeField.disabled = true;
-            locationField.disabled = true;
-        }
-    } else {
-        companyField.disabled = false;
-        storeField.disabled = false;
-        locationField.disabled = false;
-    }
-}
-
-toggleFields();
-divisionSelect.addEventListener('change', toggleFields);
-</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

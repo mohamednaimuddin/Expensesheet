@@ -483,7 +483,8 @@ if ($result->num_rows > 0) {
     <form action="add_vehicle_expense.php" method="POST">
       
       <label>Date:</label>
-      <input type="text" name="expense_date" id="vehicleDate" placeholder="yyyy-mm-dd" required>
+      <input type="date" id="vehicleDate" name="date" class="form-control" required>
+
 
       <label>Vehicle:</label>
       <select name="vehicle_id" required>
@@ -537,7 +538,6 @@ if ($result->num_rows > 0) {
 </div>
 
 <script>
-flatpickr("#vehicleDate", { dateFormat: "Y-m-d" });
 function openPopup(id){ document.getElementById(id).classList.add('active'); }
 function closePopup(id){ document.getElementById(id).classList.remove('active'); }
 window.onclick = function(e){
@@ -576,7 +576,9 @@ function toggleTVFields(type) {
     flatpickr("#labourDate", { dateFormat: "d-m-Y" });
     flatpickr("#accessoriesDate", { dateFormat: "d-m-Y" });
     flatpickr("#tvDate", { dateFormat: "d-m-Y" });
-   flatpickr("#vehicleDate", { dateFormat: "Y-m-d" });
+    flatpickr("#vehicleDate", { dateFormat: "Y-m-d" });
+
+
 
 
 

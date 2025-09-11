@@ -1,25 +1,46 @@
-<?php
+<?php 
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
 
-$username = $_SESSION['username'];
-$full_name = $_SESSION['full_name'] ?? $username;
+// Validate username
+if (!isset($_GET['username']) || empty($_GET['username'])) {
+    die("User not specified!");
+}
+$username = $_GET['username'];
 
+// Get user full name
+$stmt = $conn->prepare("SELECT full_name FROM users WHERE username = ?");
+$stmt->bind_param("s", $username);
+$stmt->execute();
+$user_result = $stmt->get_result();
+if ($user_result->num_rows === 0) die("User not found!");
+$full_name = $user_result->fetch_assoc()['full_name'];
+
+// Get filters
 $from_date = $_GET['from_date'] ?? '';
 $to_date = $_GET['to_date'] ?? '';
 $region_filter = $_GET['region'] ?? 'All';
 
-// Fetch expenses function (only submitted = 1)
+// Fetch expenses function (only submitted=1)
 function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', $region = 'All') {
-    $allowed_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense'];
+    $allowed_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense','labour_expense', 'accessories_expense','tv_expense','vehicle_expense'];
     if (!in_array($table, $allowed_tables)) die("Invalid table specified");
 
-    $sql = "SELECT * FROM $table WHERE username=? AND submitted=1";
+    if ($table === 'vehicle_expense') {
+        $sql = "SELECT id, username, service AS description, amount, date, '' as division, '' as company, '' as location, '' as store, '' as region
+                FROM vehicle_expense 
+                WHERE username=? AND submitted=1";
+    } else {
+        $sql = "SELECT id, username, description, amount, date, division, company, location, store, region
+                FROM $table 
+                WHERE username=? AND submitted=1";
+    }
+
     $types = "s";
     $params = [$username];
 
@@ -37,7 +58,9 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
     }
 
     $sql .= " ORDER BY `date` ASC";
+
     $stmt = $conn->prepare($sql);
+    if (!$stmt) die("Prepare failed: " . $conn->error . " | SQL: " . $sql);
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
     return $stmt->get_result();
@@ -49,8 +72,14 @@ $expenses_list = [
     'Food' => get_expenses($conn, 'food_expense', $username, $from_date, $to_date, $region_filter),
     'Room' => get_expenses($conn, 'room_expense', $username, $from_date, $to_date, $region_filter),
     'Other' => get_expenses($conn, 'other_expense', $username, $from_date, $to_date, $region_filter),
+    'Tools' => get_expenses($conn, 'tools_expense', $username, $from_date, $to_date, $region_filter),
+    'Labour' => get_expenses($conn, 'labour_expense', $username, $from_date, $to_date, $region_filter),
+    'Accessories' => get_expenses($conn, 'accessories_expense', $username, $from_date, $to_date, $region_filter),
+    'TV' => get_expenses($conn, 'tv_expense', $username, $from_date, $to_date, $region_filter),
+    'Vehicle' => get_expenses($conn, 'vehicle_expense', $username, $from_date, $to_date, $region_filter),
 ];
 
+// Calculate total spend
 $total_amount = 0;
 $all_expenses = [];
 foreach ($expenses_list as $type => $result) {
@@ -61,7 +90,44 @@ foreach ($expenses_list as $type => $result) {
     }
 }
 
-// Fetch advance
+// Handle advance submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_advance'])) {
+    $adv_date = $_POST['adv_date'];
+    $adv_amount = $_POST['adv_amount'];
+    if (empty($adv_date) || !is_numeric($adv_amount) || $adv_amount <= 0) die("Invalid advance data submitted.");
+    $stmt = $conn->prepare("INSERT INTO adv_amt (date, username, adv_amt) VALUES (?, ?, ?)");
+    $stmt->bind_param("ssd", $adv_date, $username, $adv_amount);
+    $stmt->execute();
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
+// Carrydown handling
+$current_month = date("Y-m");
+$stmt = $conn->prepare("SELECT id, amount, description FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? LIMIT 1");
+$stmt->bind_param("ss", $username, $current_month);
+$stmt->execute();
+$current_month_carry = $stmt->get_result()->fetch_assoc();
+$carrydown_exists = !empty($current_month_carry);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_carrydown'])) {
+    $cd_amount = $_POST['cd_amount'];
+    $cd_desc   = $_POST['cd_desc'];
+    if (!is_numeric($cd_amount)) die("Invalid carrydown amount.");
+    if ($carrydown_exists) {
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, description=? WHERE id=?");
+        $stmt->bind_param("dsi", $cd_amount, $cd_desc, $current_month_carry['id']);
+        $stmt->execute();
+    } else {
+        $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
+        $stmt->bind_param("sds", $username, $cd_amount, $cd_desc);
+        $stmt->execute();
+    }
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
+// Fetch total advances
 if ($from_date && $to_date) {
     $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
     $stmt->bind_param("sss", $username, $from_date, $to_date);
@@ -72,8 +138,43 @@ if ($from_date && $to_date) {
 $stmt->execute();
 $total_adv = $stmt->get_result()->fetch_assoc()['total_adv'] ?? 0;
 
-// Sort expenses by date ascending
-usort($all_expenses, fn($a,$b) => strtotime($a['date']) <=> strtotime($b['date']));
+// Latest carrydown
+if ($from_date && $to_date) {
+    $stmt = $conn->prepare("SELECT amount, description FROM carry_down WHERE username=? AND created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 1");
+    $stmt->bind_param("sss", $username, $from_date, $to_date);
+} else {
+    $stmt = $conn->prepare("SELECT amount, description FROM carry_down WHERE username=? ORDER BY created_at DESC LIMIT 1");
+    $stmt->bind_param("s", $username);
+}
+$stmt->execute();
+$latest_carrydown = $stmt->get_result()->fetch_assoc();
+
+$total_carry = $latest_carrydown['amount'] ?? 0;
+$carrydown_tooltip = "";
+if ($latest_carrydown) {
+    $sign = ($latest_carrydown['amount'] >= 0 ? '+' : '-');
+    $carrydown_tooltip = $sign . number_format($latest_carrydown['amount'], 2) . " : " . $latest_carrydown['description'];
+}
+
+// Invoice handling
+$stmt = $conn->prepare("SELECT invoice_no FROM invoices WHERE username=? AND from_date=? AND to_date=? AND region=?");
+$stmt->bind_param("ssss", $username, $from_date, $to_date, $region_filter);
+$stmt->execute();
+$invoice_result = $stmt->get_result();
+
+if ($invoice_result->num_rows > 0) {
+    $invoice_no = str_pad($invoice_result->fetch_assoc()['invoice_no'], 5, "0", STR_PAD_LEFT);
+} else {
+    $max_inv = $conn->query("SELECT MAX(invoice_no) as max_inv FROM invoices")->fetch_assoc()['max_inv'];
+    $next_invoice = $max_inv ? $max_inv + 1 : 1;
+    $stmt = $conn->prepare("INSERT INTO invoices (username, from_date, to_date, region, invoice_no) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("ssssi", $username, $from_date, $to_date, $region_filter, $next_invoice);
+    $stmt->execute();
+    $invoice_no = str_pad($next_invoice, 5, "0", STR_PAD_LEFT);
+}
+
+// Sort expenses by date
+usort($all_expenses, function($a, $b){ return strtotime($a['date']) <=> strtotime($b['date']); });
 ?>
 
 <!DOCTYPE html>
@@ -82,104 +183,209 @@ usort($all_expenses, fn($a,$b) => strtotime($a['date']) <=> strtotime($b['date']
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>User Expense Report | VisionAngles</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"> 
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link href="assets/user_report.css" rel="stylesheet">
 <style>
-.total-spend { background-color: #f2f2f2; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; }
-@media print { body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('assets/vision1.png') no-repeat center center; background-size: 50%; opacity: 0.1; z-index: 9999; pointer-events: none; background-color:#aeb6bd; } table, th, td { border: 1px solid black; border-collapse: collapse; padding: 6px; text-align: left; color:black; } .total-summary { display: flex; justify-content: flex-end; text-align: right; margin-top: 40px; } }
+.table { border:2px solid black; border-collapse: collapse; }
+th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
+.total-spend { background-color:#f2f2f2; padding:10px; border-radius:5px; font-weight:bold; text-align:center; }
+@media print {
+    body { -webkit-print-color-adjust:exact; margin:10mm; font-size:12px; background:#fff; }
+    body::before { content:""; position:fixed; top:0; left:0; width:100%; height:100%; background:url('assets/vision1.png') no-repeat center center; background-size:50%; opacity:0.05; z-index:9999; pointer-events:none; background-color:#aeb6bd; }
+    table { width:100%; border-collapse:collapse; border:2px solid black; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr { page-break-inside:avoid; page-break-after:auto; }
+    th { background-color:#f0f0f0 !important; -webkit-print-color-adjust:exact; }
+    th, td { border:0.5px solid black; font-size:11px; }
+    button,input,select { display:none !important; }
+}
+.modal { display:none; position:fixed; z-index:999; left:0; top:0; width:100%; height:100%; overflow:auto; background-color: rgba(0,0,0,0.5); }
+.modal-content { background:#fff; margin:5% auto; padding:20px; border-radius:5px; width:80%; max-width:700px; }
+.close-btn { float:right; font-size:24px; cursor:pointer; }
+/* Filter form styling */
+form.d-flex {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+form.d-flex .form-control-sm,
+form.d-flex .form-select-sm {
+    min-width: 150px;
+}
+
+form.d-flex .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+@media (max-width: 768px) {
+    form.d-flex .form-control-sm,
+    form.d-flex .form-select-sm {
+        width: 100%;
+    }
+    form.d-flex .btn-group {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
 </style>
 </head>
-<body class="bg-light">
+<body>
 
-<div class="container my-4">
-    <div class="report-header mb-4 text-center">
-        <img src="assets/visionlogo.jpg" alt="Company Logo" style="height:80px;">
-        <h2 class="mt-2">Expense Summary Report</h2>
-    </div>
-
-    <!-- Filters -->
-    <form method="get" class="row g-3 mb-4">
-        <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>">
-        <div class="col-md-3"><label>From</label><input type="date" class="form-control" name="from_date" value="<?php echo $from_date; ?>" required></div>
-        <div class="col-md-3"><label>To</label><input type="date" class="form-control" name="to_date" value="<?php echo $to_date; ?>" required></div>
-        <div class="col-md-3">
-            <label>Region</label>
-            <select class="form-select" name="region">
-                <?php $regions = ['All','Dammam','Riyadh','Jeddah']; foreach ($regions as $region) { $sel = ($region==$region_filter) ? 'selected' : ''; echo "<option value='$region' $sel>$region</option>"; } ?>
-            </select>
-        </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
-            <button type="submit" class="btn btn-primary">Filter</button>
-            <button type="button" onclick="window.print()" class="btn btn-secondary">Print</button>
-            <button type="button" onclick="window.history.back()" class="btn btn-outline-secondary">Back</button>
-            <button type="button" onclick="window.location.href='user_report.php'" class="btn btn-outline-danger">Clear Filter</button>
-        </div>
-    </form>
-
-    <!-- Info -->
-    <div class="mb-3">
-        <span class="me-3"><strong>Username:</strong> <?php echo ucfirst($username); ?></span>
-        <span class="me-3"><strong>Region:</strong> <?php echo $region_filter; ?></span>
-        <span class="me-3"><strong>From:</strong> <?php echo $from_date; ?></span>
-        <span><strong>To:</strong> <?php echo $to_date; ?></span>
-    </div>
-
-    <!-- Table -->
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped table-hover">
-        <thead class="table-dark">
-            <tr>
-                <th>SI. No</th>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Division</th>
-                <th>Company</th>
-                <th>Location</th>
-                <th>Store</th>
-                <th>Description</th>
-                <th>Amount</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php
-        if(count($all_expenses) > 0):
-            $si=1;
-            foreach($all_expenses as $row):
-        ?>
-            <tr>
-                <td><?= $si ?></td>
-                <td><?= htmlspecialchars($row['date']) ?></td>
-                <td><?= $row['type'] ?></td>
-                <td><?= htmlspecialchars($row['division']) ?></td>
-                <td><?= htmlspecialchars($row['company']) ?></td>
-                <td><?= htmlspecialchars($row['location']) ?></td>
-                <td><?= htmlspecialchars($row['store']) ?></td>
-                <td><?= htmlspecialchars($row['description']) ?></td>
-                <td>SAR <?= number_format($row['amount'],2) ?></td>
-                <td>
-                    <button class="btn btn-warning btn-sm" onclick="window.location='edit_expense1.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Edit</button>
-                    <button class="btn btn-success btn-sm" onclick="if(confirm('Submit this expense?')) window.location='submit_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Submit</button>
-                </td>
-            </tr>
-        <?php $si++; endforeach;
-        else: ?>
-            <tr><td colspan="10" class="text-center">No submitted expenses found.</td></tr>
-        <?php endif; ?>
-        </tbody>
-        <tfoot class="table-light">
-            <tr>
-                <td colspan="8" class="text-end fw-bold">Total Spend:</td>
-                <td colspan="2">SAR <?= number_format($total_amount, 2) ?></td>
-            </tr>
-            <tr>
-                <td colspan="8" class="text-end fw-bold">Balance:</td>
-                <td colspan="2">SAR <?= number_format($total_adv-$total_amount, 2) ?></td>
-            </tr>
-        </tfoot>
-        </table>
-    </div>
+<div class="report-header">
+<img src="assets/visionlogo.jpg" alt="Company Logo">
+<h2>Expense Report</h2>
+<div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?= $invoice_no ?></span></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>">
+    <div class="form-group"><input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="<?php echo htmlspecialchars($from_date); ?>" required></div>
+    <div class="form-group"><input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="<?php echo htmlspecialchars($to_date); ?>" required></div>
+    <div class="form-group">
+        <select class="form-select form-select-sm" id="region" name="region">
+            <?php 
+            $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
+            foreach ($regions as $region) {
+                $selected = ($region_filter == $region) ? 'selected' : '';
+                echo "<option value=\"$region\" $selected>$region</option>";
+            }
+            ?>
+        </select>
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-outline-primary btn-sm" type="submit">Search</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">Clear</button>
+        <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button>
+        <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">Export</button>
+        <button class="btn btn-info btn-sm" <?= $carrydown_exists ? 'disabled' : '' ?> onclick="openCarrydownModal()">Add Carrydown</button>
+        
+        <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button>
+    </div>
+</form>
+
+<div class="print-header d-flex justify-content-between mb-3">
+<div>
+<strong>Username:</strong> <?= htmlspecialchars(ucfirst($username)) ?> | <strong>Region:</strong> <?= htmlspecialchars($region_filter) ?><br>
+<strong>From:</strong> <?= htmlspecialchars($from_date) ?> <strong>To:</strong> <?= htmlspecialchars($to_date) ?>
+</div>
+<div style="text-align:right;">
+<strong>Carrydown:</strong> SAR <?= number_format($total_carry,2) ?>
+<?php if($carrydown_tooltip): ?>
+<i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" title="<?= htmlspecialchars($carrydown_tooltip) ?>"></i>
+<?php endif; ?>
+<?php if($carrydown_exists): ?>
+<i class="bi bi-pencil-square text-success ms-1" style="cursor:pointer;" onclick="openCarrydownModal()"></i>
+<?php endif; ?><br>
+<strong>Advance:</strong> SAR <?= number_format($total_adv,2) ?>
+</div>
+</div>
+
+<div class="table-responsive">
+<table class="table">
+<thead style="background-color:grey;">
+<tr>
+<th>SI. No</th>
+<th>Date</th>
+<th>Type</th>
+<th>Division</th>
+<th>Company</th>
+<th>Location</th>
+<th>Store</th>
+<th>Description</th>
+<th>Amount</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody>
+<?php if(count($all_expenses)>0): $si=1; foreach($all_expenses as $row): ?>
+<tr>
+<td><?= $si ?></td>
+<td><?= htmlspecialchars($row['date']) ?></td>
+<td><?= htmlspecialchars($row['type']) ?></td>
+<td><?= htmlspecialchars($row['division']) ?></td>
+<td><?= htmlspecialchars($row['company']) ?></td>
+<td><?= htmlspecialchars($row['location']) ?></td>
+<td><?= htmlspecialchars($row['store']) ?></td>
+<td><?= htmlspecialchars($row['description']) ?></td>
+<td>SAR <?= number_format($row['amount'],2) ?></td>
+<td>
+<div class="d-flex flex-column flex-md-row gap-1">
+<button class="btn btn-warning btn-sm" onclick="window.location='edit_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Edit</button>
+<button class="btn btn-danger btn-sm" onclick="if(confirm('Are you sure?')) window.location='delete_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Delete</button>
+</div>
+</td>
+</tr>
+<?php $si++; endforeach; else: ?>
+<tr><td colspan="10" class="text-center">No expenses found for this user.</td></tr>
+<?php endif; ?>
+</tbody>
+<tfoot>
+<tr>
+<td colspan="8" class="text-end fw-bold">Total Spend:</td>
+<td colspan="2">SAR <?= number_format($total_amount,2) ?></td>
+</tr>
+<tr>
+<td colspan="8" class="text-end fw-bold">Balance:</td>
+<td colspan="2">SAR <?= number_format(($total_adv+$total_carry)-$total_amount,2) ?></td>
+</tr>
+</tfoot>
+</table>
+</div>
+
+<div style="text-align:right; margin-top:10px;">
+<button onclick="window.location='manage_advance.php?username=<?= urlencode($username) ?>'">Manage Advances</button>
+</div>
+
+<div class="report-footer mt-3">
+<div>Prepared By: <?= htmlspecialchars(ucfirst($full_name)) ?></div>
+<div>Verified By :</div>
+<div>Approved By:</div>
+</div>
+
+<!-- Carrydown Modal -->
+<div id="carrydownModal" class="modal">
+<div class="modal-content">
+<span class="close-btn" onclick="closeCarrydownModal()">&times;</span>
+<h4>Carrydown Entry</h4>
+<form method="post">
+<input type="hidden" name="add_carrydown" value="1">
+<div class="mb-3">
+<label>Amount (+/-)</label>
+<input type="number" step="0.01" name="cd_amount" class="form-control" required value="<?= $current_month_carry['amount'] ?? '' ?>">
+</div>
+<div class="mb-3">
+<label>Description</label>
+<textarea name="cd_desc" class="form-control" rows="3" required><?= $current_month_carry['description'] ?? '' ?></textarea>
+</div>
+<button type="submit" class="btn btn-success"><?= $carrydown_exists ? 'Update' : 'Save' ?></button>
+<button type="button" class="btn btn-secondary" onclick="closeCarrydownModal()">Cancel</button>
+</form>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function confirmInvoicePrint(){
+if(confirm("Do you want a NEW invoice number?")){
+fetch("generate_invoice.php?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>")
+.then(res=>res.text()).then(inv=>{
+document.getElementById("invoice_no").innerText=inv;
+window.print();
+});
+}else window.print();
+}
+function openCarrydownModal(){ document.getElementById("carrydownModal").style.display='block'; }
+function closeCarrydownModal(){ document.getElementById("carrydownModal").style.display='none'; }
+// Bootstrap tooltips
+var tooltipTriggerList=[].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList=tooltipTriggerList.map(function(el){return new bootstrap.Tooltip(el)})
+</script>
 </body>
 </html>

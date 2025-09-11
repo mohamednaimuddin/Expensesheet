@@ -30,7 +30,8 @@ $table_map = [
     'tools_expense'  => 'tools_expense',
     'labour_expense' => 'labour_expense',  // corrected key
     'accessories_expense' => 'accessories_expense',
-    'tv_expense' => 'tv_expense'
+    'tv_expense' => 'tv_expense',
+    'vehicle_expense' => 'vehicle_expense'
 ];
 
 $table_key = strtolower($table_param);

@@ -23,8 +23,11 @@ $vehicle_result = $stmt->get_result();
 if ($vehicle_result->num_rows === 0) die("Vehicle not found!");
 $vehicle = $vehicle_result->fetch_assoc();
 
-// Fetch vehicle expenses
-$stmt = $conn->prepare("SELECT * FROM vehicle_expense WHERE vehicle_id=? ORDER BY expense_date ASC");
+// Fetch vehicle expenses (submitted only)
+$stmt = $conn->prepare("SELECT id, username, date, region, service, km_reading, description, amount, bill 
+                        FROM vehicle_expense 
+                        WHERE vehicle_id=? AND submitted=1 
+                        ORDER BY date ASC");
 if (!$stmt) die("Prepare failed: " . $conn->error);
 $stmt->bind_param("i", $vehicle_id);
 $stmt->execute();
@@ -56,33 +59,25 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
     th, td { border:0.5px solid black; font-size:11px; padding:4px 6px; }
     button, input, select, nav, .modal, .actions-col { display:none !important; }
     .report-footer { display:flex; justify-content:space-between; margin-top:20px; }
-    .no-print {
-        display: none !important;
-    }
+    .no-print { display: none !important; }
 }
 </style>
 </head>
 <body>
 
-
-
 <div class="container mt-3" id="printSection">
 
-  <!-- Logo Center + Heading Center -->
   <div class="text-center mb-3">
       <img src="assets/visionlogo.jpg" alt="Company Logo" style="height:80px;">
       <h2 class="mt-2">Vehicle Expense</h2>
   </div>
 
-  <!-- Print/Add Buttons Top Right -->
-  <div class="d-flex justify-content-end mb-3 gap-2">
+  <div class="d-flex justify-content-end mb-3 gap-2 no-print">
     <button class="btn btn-success" onclick="printReport()">🖨️ Print</button>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExpenseModal">➕ Add Vehicle Expense</button>
-    <a href="vehicle.php" class="btn btn-danger no-print">Back</a>
-</div>
+    <a href="vehicle.php" class="btn btn-danger">Back</a>
+  </div>
 
-
-  <!-- Vehicle Details -->
   <div class="mb-3">
       <strong>Brand:</strong> <?= htmlspecialchars($vehicle['brand']) ?> |
       <strong>Model:</strong> <?= htmlspecialchars($vehicle['model']) ?> |
@@ -93,7 +88,7 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
       <strong>Insurance Exp:</strong> <?= htmlspecialchars($vehicle['insurance_exp']) ?>
   </div>
 
-  <!-- Expenses Table -->
+  <div class="table-responsive">
   <table class="table table-bordered">
       <thead style="background-color:#f0f0f0;">
           <tr>
@@ -112,14 +107,14 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
           <?php if(count($all_expenses) > 0): $i=1; foreach($all_expenses as $row): ?>
           <tr>
               <td><?= $i++ ?></td>
-              <td><?= htmlspecialchars($row['expense_date']) ?></td>
+              <td><?= htmlspecialchars($row['date']) ?></td>
               <td><?= htmlspecialchars($row['region']) ?></td>
               <td><?= htmlspecialchars($row['service']) ?></td>
               <td><?= htmlspecialchars($row['km_reading']) ?></td>
               <td><?= htmlspecialchars($row['description']) ?></td>
               <td>SAR <?= number_format($row['amount'],2) ?></td>
               <td><?= htmlspecialchars($row['bill']) ?></td>
-              <td class="actions-col">
+              <td class="actions-col no-print">
                   <a href="edit_vehicle_expense.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm">Edit</a>
                   <a href="delete_vehicle_expense.php?id=<?= $row['id'] ?>" class="btn btn-danger btn-sm"
                     onclick="return confirm('Delete this expense?')">Delete</a>
@@ -136,8 +131,9 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
           </tr>
       </tfoot>
   </table>
+  </div>
 
-  <div class="report-footer">
+  <div class="report-footer mt-3">
       <div>Prepared By: <?= ucfirst($username) ?></div>
       <div>Verified By: </div>
       <div>Approved By: </div>
@@ -145,7 +141,6 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
 
 </div>
 
-<!-- Add Expense Modal -->
 <div class="modal fade" id="addExpenseModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -156,7 +151,7 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
         </div>
         <div class="modal-body">
             <input type="hidden" name="vehicle_id" value="<?= $vehicle_id ?>">
-            <div class="mb-2"><label>Date</label><input type="date" name="expense_date" class="form-control" required></div>
+            <div class="mb-2"><label>Date</label><input type="date" name="date" class="form-control" required></div>
             <div class="mb-2"><label>Region</label>
                 <select name="region" class="form-select" required>
                     <option>Dammam</option>
