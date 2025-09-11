@@ -231,7 +231,8 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                         <td>".($row['company'] ?? '')."</td>
                         <td>".($row['location'] ?? '')."</td>
                         <td>".($row['store'] ?? '')."</td>
-                        <td>".($row['service'] ?? '')."</td>
+                        <td>".($row['type'] === 'Vehicle' ? $row['service'] : ($row['description'] ?? ''))."</td>
+
                         <td>{$row['amount']}</td>
                         <td class='action-buttons'>";
                     

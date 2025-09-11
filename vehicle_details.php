@@ -12,23 +12,47 @@ $username = $_SESSION['username'];
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     die("Vehicle not specified!");
 }
-$vehicle_id = $_GET['id'];
+$vehicle_id = intval($_GET['id']);
 
 // Fetch vehicle details
 $stmt = $conn->prepare("SELECT * FROM vehicle WHERE id=?");
-if (!$stmt) die("Prepare failed: " . $conn->error);
 $stmt->bind_param("i", $vehicle_id);
 $stmt->execute();
 $vehicle_result = $stmt->get_result();
 if ($vehicle_result->num_rows === 0) die("Vehicle not found!");
 $vehicle = $vehicle_result->fetch_assoc();
 
+// Handle Add Vehicle Expense POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_vehicle_expense'])) {
+    $date        = $_POST['date'];
+    $region      = $_POST['region'];
+    $service     = $_POST['service'];
+    $km_reading  = $_POST['km_reading'];
+    $description = $_POST['description'];
+    $amount      = $_POST['amount'];
+    $bill        = $_POST['bill'];
+    $submitted   = 1; // Admin submits directly
+
+    $stmt = $conn->prepare("INSERT INTO vehicle_expense 
+        (vehicle_id, username, date, region, service, km_reading, description, amount, bill, submitted, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+    $stmt->bind_param("issssisdsi", 
+        $vehicle_id, $username, $date, $region, $service, $km_reading, $description, $amount, $bill, $submitted);
+
+    if ($stmt->execute()) {
+        // Stay on the same vehicle details page
+        header("Location: vehicle_details.php?id=" . $vehicle_id);
+        exit();
+    } else {
+        $error = "Failed to add expense: " . $conn->error;
+    }
+}
+
 // Fetch vehicle expenses (submitted only)
 $stmt = $conn->prepare("SELECT id, username, date, region, service, km_reading, description, amount, bill 
                         FROM vehicle_expense 
                         WHERE vehicle_id=? AND submitted=1 
                         ORDER BY date ASC");
-if (!$stmt) die("Prepare failed: " . $conn->error);
 $stmt->bind_param("i", $vehicle_id);
 $stmt->execute();
 $expense_result = $stmt->get_result();
@@ -71,6 +95,10 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
       <img src="assets/visionlogo.jpg" alt="Company Logo" style="height:80px;">
       <h2 class="mt-2">Vehicle Expense</h2>
   </div>
+
+  <?php if (!empty($error)): ?>
+      <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+  <?php endif; ?>
 
   <div class="d-flex justify-content-end mb-3 gap-2 no-print">
     <button class="btn btn-success" onclick="printReport()">🖨️ Print</button>
@@ -141,10 +169,12 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
 
 </div>
 
+<!-- Add Vehicle Expense Modal -->
 <div class="modal fade" id="addExpenseModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
-      <form method="post" action="add_vehicle_expense.php">
+      <form method="post">
+        <input type="hidden" name="add_vehicle_expense" value="1">
         <div class="modal-header">
           <h5 class="modal-title">Add Vehicle Expense</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
