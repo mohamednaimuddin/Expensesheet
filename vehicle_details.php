@@ -172,6 +172,7 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
                     <option>Tyre</option>
                     <option>Brake Pad</option>
                     <option>Brake Oil</option>
+                    <option>Fuel Injection</option>
                     <option>Other</option>
                 </select>
             </div>

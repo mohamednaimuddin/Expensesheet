@@ -1,3 +1,16 @@
+<?php
+include 'config.php';
+
+// Fetch all vehicles from the database
+$vehicles = [];
+$sql = "SELECT id, model, number_plate FROM vehicle"; // Adjust table/columns
+$result = $conn->query($sql);
+if ($result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        $vehicles[] = $row;
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -462,6 +475,77 @@
   </div>
 </div>
 
+<!-- ✅ Vehicle Expense Popup -->
+<div class="popup" id="vehiclePopup">
+  <div class="popup-content">
+    <span class="close-btn" onclick="closePopup('vehiclePopup')">&times;</span>
+    <h2>Add Vehicle Expense</h2>
+    <form action="add_vehicle_expense.php" method="POST">
+      
+      <label>Date:</label>
+      <input type="text" name="expense_date" id="vehicleDate" placeholder="yyyy-mm-dd" required>
+
+      <label>Vehicle:</label>
+      <select name="vehicle_id" required>
+        <option value="" disabled selected>Select a vehicle</option>
+        <?php foreach ($vehicles as $vehicle): ?>
+          <option value="<?= $vehicle['id'] ?>">
+            <?= htmlspecialchars($vehicle['model']) ?> - <?= htmlspecialchars($vehicle['number_plate']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+      
+      <label>Region:</label>
+      <select name="region" required>
+        <option value="">-- Select Region--</option>
+        <option value="Dammam">Dammam</option>
+        <option value="Riyadh">Riyadh</option>
+        <option value="Jeddah">Jeddah</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Service:</label>
+      <select name="service" class="form-select" required>
+        <option value="">-- Select Service --</option>
+        <option>Engine Oil</option>
+        <option>Gear Oil</option>
+        <option>Tyre</option>
+        <option>Brake Pad</option>
+        <option>Brake Oil</option>
+        <option>Fuel Injection</option>
+        <option>Other</option>
+      </select>
+
+      <label>KM Reading:</label>
+      <input type="number" name="km_reading" required>
+
+      <label>Description:</label>
+      <textarea name="description" required></textarea>
+
+      <label>Amount:</label>
+      <input type="number" step="0.01" name="amount" required>
+
+      <label>Bill:</label>
+      <select name="bill" required>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+
+      <button type="submit" class="btn">Save Vehicle Expense</button>
+    </form>
+  </div>
+</div>
+
+<script>
+flatpickr("#vehicleDate", { dateFormat: "Y-m-d" });
+function openPopup(id){ document.getElementById(id).classList.add('active'); }
+function closePopup(id){ document.getElementById(id).classList.remove('active'); }
+window.onclick = function(e){
+    document.querySelectorAll('.popup').forEach(p=>{
+        if(e.target==p) p.classList.remove('active');
+    });
+}
+</script>
 <script>
 function toggleTVFields(type) {
   if (type === 'NEW') {
@@ -492,6 +576,8 @@ function toggleTVFields(type) {
     flatpickr("#labourDate", { dateFormat: "d-m-Y" });
     flatpickr("#accessoriesDate", { dateFormat: "d-m-Y" });
     flatpickr("#tvDate", { dateFormat: "d-m-Y" });
+   flatpickr("#vehicleDate", { dateFormat: "Y-m-d" });
+
 
 
     // Popup close function

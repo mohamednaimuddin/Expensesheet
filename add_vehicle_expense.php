@@ -37,9 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Prepare failed: " . $conn->error);
     }
 
-    // Bind parameters: i=int, s=string, d=double
+    // Bind parameters
     $stmt->bind_param(
-        "isssisss", // if bill is stored as number (0/1)
+        "isssisss",
         $vehicle_id,
         $date,
         $region,
@@ -47,13 +47,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $km_reading,
         $description,
         $amount,
-        $bill // change to "s" in bind_param if stored as 'Yes'/'No'
+        $bill
     );
 
     // Execute statement
     if ($stmt->execute()) {
-        // Redirect back to vehicle details
-        header("Location: vehicle_details.php?id=" . $vehicle_id);
+        // Redirect based on user role
+        if ($_SESSION['role'] === 'admin') {
+            header("Location: dashboard_admin.php");
+        } else {
+            header("Location: dashboard_user.php");
+        }
         exit();
     } else {
         die("Execute failed: " . $stmt->error);

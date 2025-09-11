@@ -8,7 +8,7 @@ include 'config.php';
 
 $username = $_SESSION['username'];
 
-// Expense tables
+// Expense tables except vehicle_expense
 $tables = [
     'fuel_expense',
     'food_expense',
@@ -17,7 +17,7 @@ $tables = [
     'tools_expense',
     'labour_expense',
     'accessories_expense',
-    'tv_expense' // ✅ new table for TV expenses
+    'tv_expense'
 ];
 
 // Total Expenses
@@ -33,6 +33,19 @@ foreach ($tables as $table) {
     $category_totals[$table] = $row['total'] ?? 0;
     $total_amount += $category_totals[$table];
 }
+
+// Vehicle Expenses (separate query)
+$sql_vehicle = "SELECT SUM(ve.amount) AS total_vehicle
+                FROM vehicle_expense ve
+                JOIN vehicle v ON ve.vehicle_id = v.id
+                WHERE v.vehicle_owner = ?";
+$stmt_vehicle = $conn->prepare($sql_vehicle);
+if (!$stmt_vehicle) die("SQL prepare failed for vehicle_expense: " . $conn->error);
+$stmt_vehicle->bind_param("s", $username);
+$stmt_vehicle->execute();
+$row_vehicle = $stmt_vehicle->get_result()->fetch_assoc();
+$category_totals['vehicle_expense'] = $row_vehicle['total_vehicle'] ?? 0;
+$total_amount += $category_totals['vehicle_expense'];
 
 // Total Advance
 $sql = "SELECT SUM(adv_amt) AS total_adv FROM adv_amt WHERE username=?";
@@ -65,7 +78,6 @@ $balance_class = $balance >= 0 ? 'positive' : 'negative';
 <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/vision.ico">
 <style>
-/* same styling you already had */
 body {
     background: linear-gradient(120deg, #f0f4ff, #f9f9f9);
     font-family: Arial, sans-serif;
@@ -116,8 +128,8 @@ body::before {
 .tools { background: linear-gradient(135deg, #f43f5e, #fb7185); }
 .labour { background: linear-gradient(135deg, #f59e0b, #fcd34d); }
 .accessories { background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
-/* ✅ TV card color */
 .tv { background: linear-gradient(135deg, #6366f1, #a5b4fc); }
+.vehicle { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
 footer { background: #ecf0f1; color: #333; padding: 15px 0; text-align: center; }
 .positive { color: green; }
 .negative { color: red; }
@@ -164,9 +176,7 @@ footer { background: #ecf0f1; color: #333; padding: 15px 0; text-align: center; 
             <div class="col-md-4 mb-3">
                 <div class="card-summary">
                     <h5>🧾 Balance</h5>
-                    <p class="<?php echo $balance_class; ?>">
-                        SAR <?php echo number_format($balance, 2); ?>
-                    </p>
+                    <p class="<?php echo $balance_class; ?>">SAR <?php echo number_format($balance, 2); ?></p>
                 </div>
             </div>
         </div>
@@ -174,63 +184,15 @@ footer { background: #ecf0f1; color: #333; padding: 15px 0; text-align: center; 
 
     <!-- Expense Cards -->
     <div class="row g-4 mt-4">
-        <div class="col-md-3">
-            <div class="card-expense fuel" onclick="openPopup('fuelPopup')">
-                <i class="bi bi-fuel-pump"></i>
-                <h5>⛽ Fuel</h5>
-                <p>SAR <?php echo number_format($category_totals['fuel_expense'], 2); ?></p>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card-expense food" onclick="openPopup('foodPopup')">
-                <i class="bi bi-egg-fried"></i>
-                <h5>🍽️ Food</h5>
-                <p>SAR <?php echo number_format($category_totals['food_expense'], 2); ?></p>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card-expense room" onclick="openPopup('roomPopup')">
-                <i class="bi bi-house-door"></i>
-                <h5>🏨 Hotel</h5>
-                <p>SAR <?php echo number_format($category_totals['room_expense'], 2); ?></p>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card-expense other" onclick="openPopup('otherPopup')">
-                <i class="bi bi-lightbulb"></i>
-                <h5>💡 Other</h5>
-                <p>SAR <?php echo number_format($category_totals['other_expense'], 2); ?></p>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card-expense tools" onclick="openPopup('toolsPopup')">
-                <i class="bi bi-tools"></i>
-                <h5>🛠️ Tools</h5>
-                <p>SAR <?php echo number_format($category_totals['tools_expense'], 2); ?></p>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card-expense labour" onclick="openPopup('labourPopup')">
-                <i class="bi bi-person-workspace"></i>
-                <h5>👷 Labour</h5>
-                <p>SAR <?php echo number_format($category_totals['labour_expense'], 2); ?></p>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card-expense accessories" onclick="openPopup('accessoriesPopup')">
-                <i class="bi bi-bag"></i>
-                <h5>🎒 Accessories</h5>
-                <p>SAR <?php echo number_format($category_totals['accessories_expense'], 2); ?></p>
-            </div>
-        </div>
-        <!-- ✅ New TV Expense Card -->
-        <div class="col-md-3">
-            <div class="card-expense tv" onclick="openPopup('tvPopup')">
-                <i class="bi bi-tv"></i>
-                <h5>📺 TV</h5>
-                <p>SAR <?php echo number_format($category_totals['tv_expense'], 2); ?></p>
-            </div>
-        </div>
+        <div class="col-md-3"><div class="card-expense fuel" onclick="openPopup('fuelPopup')"><i class="bi bi-fuel-pump"></i><h5>⛽ Fuel</h5><p>SAR <?php echo number_format($category_totals['fuel_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense food" onclick="openPopup('foodPopup')"><i class="bi bi-egg-fried"></i><h5>🍽️ Food</h5><p>SAR <?php echo number_format($category_totals['food_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense room" onclick="openPopup('roomPopup')"><i class="bi bi-house-door"></i><h5>🏨 Hotel</h5><p>SAR <?php echo number_format($category_totals['room_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense other" onclick="openPopup('otherPopup')"><i class="bi bi-lightbulb"></i><h5>💡 Other</h5><p>SAR <?php echo number_format($category_totals['other_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense tools" onclick="openPopup('toolsPopup')"><i class="bi bi-tools"></i><h5>🛠️ Tools</h5><p>SAR <?php echo number_format($category_totals['tools_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense labour" onclick="openPopup('labourPopup')"><i class="bi bi-person-workspace"></i><h5>👷 Labour</h5><p>SAR <?php echo number_format($category_totals['labour_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense accessories" onclick="openPopup('accessoriesPopup')"><i class="bi bi-bag"></i><h5>🎒 Accessories</h5><p>SAR <?php echo number_format($category_totals['accessories_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense tv" onclick="openPopup('tvPopup')"><i class="bi bi-tv"></i><h5>📺 TV</h5><p>SAR <?php echo number_format($category_totals['tv_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense vehicle" onclick="openPopup('vehiclePopup')"><i class="bi bi-car-front"></i><h5>🚗 Vehicle</h5><p>SAR <?php echo number_format($category_totals['vehicle_expense'], 2); ?></p></div></div>
     </div>
 </div>
 
@@ -250,7 +212,7 @@ flatpickr("#roomDate", { dateFormat: "d-m-Y" });
 flatpickr("#otherDate", { dateFormat: "d-m-Y" });
 flatpickr("#toolsDate", { dateFormat: "d-m-Y" });
 flatpickr("#accessoriesDate", { dateFormat: "d-m-Y" });
-flatpickr("#tvDate", { dateFormat: "d-m-Y" }); // ✅ for TV popup
+flatpickr("#tvDate", { dateFormat: "d-m-Y" })
 
 function openPopup(id){ document.getElementById(id).classList.add('active'); }
 function closePopup(id){ document.getElementById(id).classList.remove('active'); }
