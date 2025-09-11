@@ -56,24 +56,15 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
     th, td { border:0.5px solid black; font-size:11px; padding:4px 6px; }
     button, input, select, nav, .modal, .actions-col { display:none !important; }
     .report-footer { display:flex; justify-content:space-between; margin-top:20px; }
+    .no-print {
+        display: none !important;
+    }
 }
 </style>
 </head>
 <body>
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #4f46e5, #ec4899);">
-  <div class="container">
-    <a class="navbar-brand d-flex align-items-center text-white" href="dashboard_admin.php">
-      <img src="assets/visionangles.png" alt="Logo" style="height:40px; margin-right:10px;">
-      Vision Angles Security EST.
-    </a>
-    <div class="d-flex ms-auto align-items-center">
-      <span class="text-white me-3">👤 <?= ucfirst($username) ?></span>
-      <a href="vehicle.php" class="btn btn-danger">Back</a>
-    </div>
-  </div>
-</nav>
+
 
 <div class="container mt-3" id="printSection">
 
@@ -85,9 +76,11 @@ th, td { border:0.5px solid black; padding:4px 6px; text-align:left; }
 
   <!-- Print/Add Buttons Top Right -->
   <div class="d-flex justify-content-end mb-3 gap-2">
-      <button class="btn btn-success" onclick="printReport()">🖨️ Print</button>
-      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExpenseModal">➕ Add Vehicle Expense</button>
-  </div>
+    <button class="btn btn-success" onclick="printReport()">🖨️ Print</button>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addExpenseModal">➕ Add Vehicle Expense</button>
+    <a href="vehicle.php" class="btn btn-danger no-print">Back</a>
+</div>
+
 
   <!-- Vehicle Details -->
   <div class="mb-3">

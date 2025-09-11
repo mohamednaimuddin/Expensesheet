@@ -72,9 +72,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form method="POST" class="row g-3">
 
         <div class="col-md-6">
-            <label class="form-label">Brand</label>
-            <input type="text" name="brand" class="form-control" required>
-        </div>
+    <label class="form-label">Brand</label>
+    <select name="brand" class="form-select" required>
+        <option value="" disabled selected>Select Brand</option>
+        <option value="Toyota">Toyota</option>
+        <option value="Honda">Suzuki</option>
+        <option value="Nissan">Nissan</option>
+        <option value="Hyundai">Hyundai</option>
+        <option value="Kia">Kia</option>
+    </select>
+</div>
 
         <div class="col-md-6">
             <label class="form-label">Model</label>
