@@ -8,7 +8,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 $username = $_SESSION['username'];
 include 'config.php';
 // --- Count total pending bills ---
-$tables = ['fuel_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense'];
+$tables = ['fuel_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense', 'vehicle_expense'];
 $pending_bill_count = 0;
 
 foreach($tables as $table) {

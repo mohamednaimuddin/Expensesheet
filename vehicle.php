@@ -82,10 +82,10 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; }
       <button class="btn btn-outline-primary btn-sm" type="submit">Search</button>
       <a href="vehicle.php" class="btn btn-outline-secondary btn-sm">Clear</a>
       <button class="btn btn-outline-success btn-sm" type="button" onclick="window.print()">Print</button>
-      <button class="btn btn-outline-success btn-sm" type="button"
+      <!-- <button class="btn btn-outline-success btn-sm" type="button"
         onclick="window.location='export_vehicle_excel.php?search=<?= urlencode($search) ?>'">
         Export
-      </button>
+      </button> -->
       <a href="dashboard_admin.php" class="btn btn-danger btn-sm">Back</a>
     </div>
   </form>
