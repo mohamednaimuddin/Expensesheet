@@ -15,14 +15,15 @@ $id = intval($_GET['id']);
 $type = $_GET['type'];
 
 $tables = [
-    'Fuel'   => 'fuel_expense',
-    'Food'   => 'food_expense',
-    'Room'   => 'room_expense',
-    'Other'  => 'other_expense',
-    'Tools'  => 'tools_expense',
-    'Labour' => 'labour_expense', // ✅ Added Labour
-    'Accessories' => 'accessories_expense',
-    'tv' => 'tv_expense'
+    'Fuel'          => 'fuel_expense',
+    'Food'          => 'food_expense',
+    'Room'          => 'room_expense',
+    'Other'         => 'other_expense',
+    'Tools'         => 'tools_expense',
+    'Labour'        => 'labour_expense', // ✅ Added Labour
+    'Accessories'   => 'accessories_expense',
+    'tv'            => 'tv_expense',
+    'Vehicle'       => 'vehicle_expense'
 ];
 
 if (!array_key_exists($type, $tables)) {
