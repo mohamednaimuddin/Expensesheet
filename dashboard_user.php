@@ -17,7 +17,8 @@ $tables = [
     'tools_expense',
     'labour_expense',
     'accessories_expense',
-    'tv_expense'
+    'tv_expense',
+    'vehicle_expense'
 ];
 
 // Total Expenses
