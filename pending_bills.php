@@ -14,14 +14,16 @@ if (!empty($_POST['update_bill']) && isset($_POST['id'], $_POST['category'])) {
     $bill_value = $_POST['update_bill'] === 'yes' ? 'Yes' : 'No';
 
     $table_map = [
-        'Fuel'        => 'fuel_expense',
-        'Room'        => 'room_expense',
-        'Other'       => 'other_expense',
-        'Tools'       => 'tools_expense',
-        'Labour'      => 'labour_expense',
-        'Accessories' => 'accessories_expense',
-        'Tv'          => 'tv_expense',
+    'Fuel'        => 'fuel_expense',
+    'Room'        => 'room_expense',
+    'Other'       => 'other_expense',
+    'Tools'       => 'tools_expense',
+    'Labour'      => 'labour_expense',
+    'Accessories' => 'accessories_expense',
+    'Tv'          => 'tv_expense',
+    'Vehicle'     => 'vehicle_expense'   // ✅ added
     ];
+
 
     if (isset($table_map[$category])) {
         $stmt = $conn->prepare("UPDATE {$table_map[$category]} SET bill=? WHERE id=?");
@@ -60,7 +62,7 @@ if ($region_filter !== '' && $region_filter !== 'All') {
 
 // --- Fetch unique usernames ---
 $usernames = [];
-foreach (['fuel_expense','room_expense','other_expense','tools_expense','labour_expense', 'accessories_expense'] as $table) {
+foreach (['fuel_expense','room_expense','other_expense','tools_expense','labour_expense', 'accessories_expense', 'tv_expense','vehicle_expense'] as $table) {
     $res = $conn->query("SELECT DISTINCT username FROM $table");
     if ($res) {
         while ($row = $res->fetch_assoc()) {
@@ -111,6 +113,12 @@ $query = "
     SELECT 'Tv' AS expense_category, id, date, division, company, store, location, description, amount, bill
     FROM tv_expense
     WHERE (bill IS NULL OR TRIM(bill)='' OR LOWER(bill) IN ('no','pending','n','0')) $filter_sql
+
+    UNION ALL
+
+    SELECT 'Vehicle' AS expense_category, id, date, '' AS division, '' AS company, '' AS store, '' AS location, service AS description, amount, bill
+    FROM vehicle_expense
+    WHERE (bill IS NULL OR TRIM(bill) = '' OR LOWER(bill) IN ('no','pending','n','0')) $filter_sql
 
 
     ORDER BY date ASC
@@ -246,12 +254,12 @@ $(document).ready(function(){
                     <tr>
                         <th>SI No</th>
                         <th>Date</th>
+                        <th>Type</th>
                         <th>Division</th>
                         <th>Company</th>
                         <th>Location</th>
                         <th>Store</th>
                         <th>Description</th>
-                        <th>Type</th>
                         <th>Amount</th>
                         <th>Remark</th>
                     </tr>
@@ -266,12 +274,12 @@ $(document).ready(function(){
                     <tr class="<?= $is_pending ? 'pending' : '' ?>">
                         <td><?= $i++ ?></td>
                         <td><?= htmlspecialchars($row['date']) ?></td>
+                        <td><?= htmlspecialchars($row['expense_category']) ?></td>
                         <td><?= htmlspecialchars($row['division'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['company'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['location'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['store'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['description']) ?></td>
-                        <td><?= htmlspecialchars($row['expense_category']) ?></td>
                         <td><?= htmlspecialchars($row['amount']) ?></td>
                         <td>
                             <?php if($is_pending): ?>
