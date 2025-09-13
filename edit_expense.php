@@ -121,8 +121,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if($is_vehicle): ?>
             <!-- Vehicle: only service and amount editable -->
             <div class="mb-3">
-                <label class="form-label">Service</label>
-                <input type="text" name="service" class="form-control" value="<?= htmlspecialchars($expense['service']) ?>" required>
+                <label>Service:</label>
+      <select name="service" class="form-select" required>
+        <option value="">-- Select Service --</option>
+        <option>Engine Oil</option>
+        <option>Gear Oil</option>
+        <option>Tyre</option>
+        <option>Brake Pad</option>
+        <option>Brake Oil</option>
+        <option>Fuel Injection</option>
+        <option>Other</option>
+      </select>
             </div>
             <div class="mb-3">
                 <label class="form-label">Amount</label>
