@@ -16,11 +16,39 @@ $region_filter = $_GET['region'] ?? 'All';
 function get_expenses($conn, $table, $from_date = '', $to_date = '', $region = 'All') {
     $allowed_tables = [
         'fuel_expense', 'food_expense', 'room_expense', 
-        'other_expense', 'tools_expense', 'labour_expense', 'accessories_expense'
+        'other_expense', 'tools_expense', 'labour_expense', 
+        'accessories_expense','tv_expense', 'vehicle_expense'
     ];
     if (!in_array($table, $allowed_tables)) die("Invalid table specified");
 
-    $sql = "SELECT * FROM $table WHERE submitted=1";
+    // Column mapping if description is a different field
+    $column_map = [
+        'vehicle_expense' => 'service'
+    ];
+    $description_col = $column_map[$table] ?? 'description';
+
+    // Extra optional columns (only if table has them)
+    $extra_columns = [
+        'division', 'company', 'location', 'store', 'region', 'remark'
+    ];
+
+    // Build SELECT columns dynamically
+    $columns = ["id", "username", "$description_col AS description", "amount", "date"];
+    foreach ($extra_columns as $col) {
+        // Check if column exists in this table
+        $check = $conn->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
+        if ($check && $check->num_rows > 0) {
+            $columns[] = $col;
+        } else {
+            // Add a blank field for consistency
+            $columns[] = "'' AS $col";
+        }
+    }
+
+    $columns_sql = implode(", ", $columns);
+
+    $sql = "SELECT $columns_sql FROM $table WHERE submitted=1";
+
     $types = "";
     $params = [];
 
@@ -38,12 +66,18 @@ function get_expenses($conn, $table, $from_date = '', $to_date = '', $region = '
     }
 
     $sql .= " ORDER BY `date` ASC";
+
     $stmt = $conn->prepare($sql);
     if (!$stmt) die("Prepare failed: " . $conn->error . " | SQL: " . $sql);
-    if (!empty($params)) $stmt->bind_param($types, ...$params);
+
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+
     $stmt->execute();
     return $stmt->get_result();
 }
+
 
 // Fetch all expenses for all users
 $tables = [
@@ -53,7 +87,9 @@ $tables = [
     'other_expense'       => 'Other',
     'tools_expense'       => 'Tools',
     'labour_expense'      => 'Labour',
-    'accessories_expense' => 'Accessories' // ✅ Added Accessories
+    'accessories_expense' => 'Accessories', // ✅ Added Accessories
+    'tv_expense'          => 'tv',
+    'vehicle_expense'     => 'vehicle'
 ];
 
 $all_expenses = [];
