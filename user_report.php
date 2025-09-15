@@ -28,7 +28,6 @@ $region_filter = $_GET['region'] ?? 'All';
 
 // Fetch expenses function (only submitted=1)
 function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', $region = 'All') {
-    ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense','labour_expense', 'accessories_expense','tv_expense','vehicle_expense'];
     if ($table === 'vehicle_expense') {
         $sql = "SELECT id, username, service AS description, amount, date, '' as division, '' as company, '' as location, '' as store, '' as region
                 FROM vehicle_expense 
@@ -66,6 +65,12 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
     return $stmt->get_result();
 }
 
+// Pagination setup
+$limit = 20; // expenses per page
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int) $_GET['page'] : 1;
+if ($page < 1) $page = 1;
+$offset = ($page - 1) * $limit;
+
 // Fetch all expenses
 $expenses_list = [
     'Fuel' => get_expenses($conn, 'fuel_expense', $username, $from_date, $to_date, $region_filter),
@@ -74,7 +79,7 @@ $expenses_list = [
     'Other' => get_expenses($conn, 'other_expense', $username, $from_date, $to_date, $region_filter),
     'Tools' => get_expenses($conn, 'tools_expense', $username, $from_date, $to_date, $region_filter),
     'Labour' => get_expenses($conn, 'labour_expense', $username, $from_date, $to_date, $region_filter),
-    'Accessories' =>get_expenses($conn, 'accessories_expense', $username, $from_date, $to_date, $region_filter),
+    'Accessories' => get_expenses($conn, 'accessories_expense', $username, $from_date, $to_date, $region_filter),
     'tv' => get_expenses($conn, 'tv_expense', $username, $from_date, $to_date, $region_filter),
     'Vehicle' => get_expenses($conn, 'vehicle_expense', $username, $from_date, $to_date, $region_filter),
 ];
@@ -193,7 +198,15 @@ if ($invoice_result->num_rows > 0) {
 }
 
 // Sort expenses by date ascending
-usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtotime($b['date']); });
+usort($all_expenses, function($a, $b) {
+    return strtotime($a['date']) <=> strtotime($b['date']);
+});
+
+// Save total count for pagination
+$total_records = count($all_expenses);
+
+// Slice only for current page
+$paged_expenses = array_slice($all_expenses, $offset, $limit);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -203,10 +216,34 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
 <title>User Expense Report | VisionAngles</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link href="assets/user_report.css" rel="stylesheet">
-<link rel="icon" type="image/png" href="assets\vision.ico">
+<link rel="icon" type="image/png" href="assets/vision.ico">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"> 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-<style> .total-spend { background-color: #f2f2f2; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; } /* Table general styling */ .table { border: 2px solid black; /* outer border */ border-collapse: collapse; } th, td { border: 0.5px solid black; /* inner borders */ padding: 4px 6px; text-align: left; word-wrap: break-word; } @media print { body { -webkit-print-color-adjust: exact; color-adjust: exact; margin: 10mm; font-size: 12px; background: #fff; } /* Watermark */ body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('assets/vision1.png') no-repeat center center; background-size: 50%; opacity: 0.05; z-index: 9999; pointer-events: none; background-color: #aeb6bd; } /* Table print styling */ table { width: 100%; border-collapse: collapse; border: 2px solid black; /* outer border */ page-break-inside: auto; } thead { display: table-header-group; } tfoot { display: table-footer-group; } tr { page-break-inside: avoid; page-break-after: auto; } th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; color: black; } th, td { border: 0.5px solid black; /* inner borders */ padding: 4px 6px; font-size: 11px; text-align: left; word-wrap: break-word; color: black; } /* Hide interactive elements */ button, input, select { display: none !important; } .total-summary { display: flex; justify-content: flex-end; text-align: right; margin-top: 20px; } } /* Modal styling (not affected by print) */ .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); } .modal-content { background-color: #fff; margin: 5% auto; padding: 20px; border-radius: 5px; width: 80%; max-width: 700px; } .close-btn { float: right; font-size: 24px; cursor: pointer; } .modal table { width: 100%; border-collapse: collapse; margin-top: 10px; } .modal table th, .modal table td { border: 0.5px solid #ddd; padding: 8px; text-align: center; } .modal table th { background-color: #f2f2f2; } </style>
+<style>
+.total-spend { background-color: #f2f2f2; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; }
+/* Table general styling */
+.table { border: 2px solid black; border-collapse: collapse; }
+th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wrap: break-word; }
+@media print {
+    body { -webkit-print-color-adjust: exact; color-adjust: exact; margin: 10mm; font-size: 12px; background: #fff; }
+    body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('assets/vision1.png') no-repeat center center; background-size: 50%; opacity: 0.05; z-index: 9999; pointer-events: none; background-color: #aeb6bd; }
+    table { width: 100%; border-collapse: collapse; border: 2px solid black; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; color: black; }
+    th, td { border: 0.5px solid black; padding: 4px 6px; font-size: 11px; text-align: left; word-wrap: break-word; color: black; }
+    button, input, select { display: none !important; }
+    .total-summary { display: flex; justify-content: flex-end; text-align: right; margin-top: 20px; }
+}
+/* Modal styling */
+.modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+.modal-content { background-color: #fff; margin: 5% auto; padding: 20px; border-radius: 5px; width: 80%; max-width: 700px; }
+.close-btn { float: right; font-size: 24px; cursor: pointer; }
+.modal table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.modal table th, .modal table td { border: 0.5px solid #ddd; padding: 8px; text-align: center; }
+.modal table th { background-color: #f2f2f2; }
+</style>
 </head>
 <body>
 
@@ -216,33 +253,9 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
     <div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></div>
 </div>
 
-<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>">
-    <div class="form-group"><input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="<?php echo htmlspecialchars($from_date); ?>" required></div>
-    <div class="form-group"><input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="<?php echo htmlspecialchars($to_date); ?>" required></div>
-    <div class="form-group">
-        <select class="form-select form-select-sm" id="region" name="region">
-            <?php 
-            $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
-            foreach ($regions as $region) {
-                $selected = ($region_filter == $region) ? 'selected' : '';
-                echo "<option value=\"$region\" $selected>$region</option>";
-            }
-            ?>
-        </select>
-    </div>
-    <div class="btn-group">
-        <button class="btn btn-outline-primary btn-sm" type="submit">Search</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">Clear</button>
-        <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button>
-        <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">Export</button>
-        <button class="btn btn-info btn-sm" <?= $carrydown_exists ? 'disabled' : '' ?> onclick="openCarrydownModal()">Add Carrydown</button>
-        
-        <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button>
-    </div>
-</form>
+<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3"> <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>"> <div class="form-group"><input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="<?php echo htmlspecialchars($from_date); ?>" required></div> <div class="form-group"><input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="<?php echo htmlspecialchars($to_date); ?>" required></div> <div class="form-group"> <select class="form-select form-select-sm" id="region" name="region"> <?php $regions = ['All','Dammam','Riyadh','Jeddah','Other']; foreach ($regions as $region) { $selected = ($region_filter == $region) ? 'selected' : ''; echo "<option value=\"$region\" $selected>$region</option>"; } ?> </select> </div> <div class="btn-group"> <button class="btn btn-outline-primary btn-sm" type="submit">Search</button> <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">Clear</button> <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button> <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">Export</button> <button class="btn btn-info btn-sm" <?= $carrydown_exists ? 'disabled' : '' ?> onclick="openCarrydownModal()">Add Carrydown</button> <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button> </div> </form>
 
-<div class="print-header" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+<div class="print-header d-flex justify-content-between mb-3">
     <div>
         <strong>Username:</strong> <?php echo htmlspecialchars(ucfirst($username)); ?> 
         | <strong>Region:</strong> <?php echo htmlspecialchars($region_filter); ?><br>
@@ -250,21 +263,21 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
         <strong>To:</strong> <?php echo htmlspecialchars($to_date); ?>
     </div>
     <div style="text-align:right;">
-        <strong>Carrydown:</strong> 
-        SAR <?php echo number_format($total_carry, 2); ?>
+        <strong>Carrydown:</strong> SAR <?php echo number_format($total_carry, 2); ?>
         <?php if ($carrydown_tooltip): ?>
             <i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" data-bs-placement="left" title="<?php echo htmlspecialchars($carrydown_tooltip); ?>"></i>
-        <?php endif; ?><?php if($carrydown_exists): ?>
+        <?php endif; ?>
+        <?php if($carrydown_exists): ?>
             <i class="bi bi-pencil-square text-success ms-1" style="cursor:pointer;" onclick="openCarrydownModal()"></i>
         <?php endif; ?><br>
         <strong>Advance:</strong> SAR <?php echo number_format($total_adv, 2); ?>
     </div>
 </div>
 
-<!-- expenses table remains same -->
-<div class="table-responsive">
+<!-- Screen Table (Paginated) -->
+<div class="table-responsive d-print-none">
     <table class="table align-middle">
-        <thead class="table" style="background-color:grey;">
+        <thead style="background-color:grey;">
             <tr>
                 <th style="width:50px; text-align:center;">SI. No</th>
                 <th>Date</th>
@@ -279,10 +292,10 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
             </tr>
         </thead>
         <tbody>
-            <?php if(count($all_expenses) > 0): $si=1; foreach($all_expenses as $row): ?>
+            <?php if(count($paged_expenses) > 0): $si = $offset + 1; foreach($paged_expenses as $row): ?>
             <tr>
-                <td style="text-align:center;"><?= $si ?></td>
-                <td><?= date("d", strtotime($row['date'])) . "&nbsp;" . date("M", strtotime($row['date'])) ?></td>
+                <td class="text-center"><?= $si ?></td>
+                <td><?= date("d M", strtotime($row['date'])) ?></td>
                 <td><?= htmlspecialchars($row['type']) ?></td>
                 <td><?= htmlspecialchars($row['division']) ?></td>
                 <td><?= htmlspecialchars($row['company']) ?></td>
@@ -299,9 +312,77 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
                 </td>
             </tr>
             <?php $si++; endforeach; else: ?>
+            <tr><td colspan="10" class="text-center">No expenses found for this user.</td></tr>
+            <?php endif; ?>
+        </tbody>
+        <tfoot class="table-light">
             <tr>
-                <td colspan="10" class="text-center">No expenses found for this user.</td>
+                <td colspan="8" class="text-end fw-bold">Total Spend:</td>
+                <td colspan="2">SAR <?= number_format($total_amount, 2) ?></td>
             </tr>
+            <tr>
+                <td colspan="8" class="text-end fw-bold">Balance:</td>
+                <td colspan="2">SAR <?= number_format(($total_adv + $total_carry) - $total_amount, 2) ?></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Pagination controls -->
+    <?php
+    $total_pages = ceil($total_records / $limit);
+    if ($total_pages > 1):
+    ?>
+    <nav>
+      <ul class="pagination justify-content-center">
+        <li class="page-item <?= ($page <= 1 ? 'disabled' : '') ?>">
+          <a class="page-link" href="?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>&page=<?= $page-1 ?>">Previous</a>
+        </li>
+        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+          <li class="page-item <?= ($i == $page ? 'active' : '') ?>">
+            <a class="page-link" href="?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>&page=<?= $i ?>"><?= $i ?></a>
+          </li>
+        <?php endfor; ?>
+        <li class="page-item <?= ($page >= $total_pages ? 'disabled' : '') ?>">
+          <a class="page-link" href="?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>&page=<?= $page+1 ?>">Next</a>
+        </li>
+      </ul>
+    </nav>
+    <?php endif; ?>
+</div>
+
+<!-- Full Table (Print) -->
+<div class="table-responsive d-none d-print-block">
+    <table class="table align-middle">
+        <thead style="background-color:grey;">
+            <tr>
+                <th style="width:50px; text-align:center;">SI. No</th>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Division</th>
+                <th>Company</th>
+                <th>Location</th>
+                <th>Store</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Remark</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if(count($all_expenses) > 0): $si = 1; foreach($all_expenses as $row): ?>
+            <tr>
+                <td class="text-center"><?= $si ?></td>
+                <td><?= date("d M", strtotime($row['date'])) ?></td>
+                <td><?= htmlspecialchars($row['type']) ?></td>
+                <td><?= htmlspecialchars($row['division']) ?></td>
+                <td><?= htmlspecialchars($row['company']) ?></td>
+                <td><?= htmlspecialchars($row['location']) ?></td>
+                <td><?= htmlspecialchars($row['store']) ?></td>
+                <td><?= htmlspecialchars($row['description']) ?></td>
+                <td>SAR <?= number_format($row['amount'], 2) ?></td>
+                <td><?= htmlspecialchars($row['remark'] ?? '') ?></td>
+            </tr>
+            <?php $si++; endforeach; else: ?>
+            <tr><td colspan="10" class="text-center">No expenses found for this user.</td></tr>
             <?php endif; ?>
         </tbody>
         <tfoot class="table-light">
@@ -316,7 +397,6 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
         </tfoot>
     </table>
 </div>
-
 
 <div style="text-align:right; margin-top:10px;">
     <button onclick="window.location='manage_advance.php?username=<?= urlencode($username) ?>'">Manage Advances</button>
@@ -335,18 +415,15 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
     <h4>Carrydown Entry</h4>
     <form method="post">
         <input type="hidden" name="add_carrydown" value="1">
-        
         <div class="mb-3">
             <label for="cd_amount" class="form-label">Amount (can be + or -)</label>
             <input type="number" step="0.01" name="cd_amount" id="cd_amount" class="form-control" required 
                    value="<?= $current_month_carry['amount'] ?? '' ?>">
         </div>
-
         <div class="mb-3">
             <label for="cd_desc" class="form-label">Description</label>
             <textarea name="cd_desc" id="cd_desc" class="form-control" rows="3" required><?= $current_month_carry['description'] ?? '' ?></textarea>
         </div>
-
         <button type="submit" class="btn btn-success"><?= $carrydown_exists ? 'Update' : 'Save' ?></button>
         <button type="button" class="btn btn-secondary" onclick="closeCarrydownModal()">Cancel</button>
     </form>
@@ -363,19 +440,12 @@ function confirmInvoicePrint(){
         });
     } else window.print();
 }
-
-function openCarrydownModal() {
-    document.getElementById("carrydownModal").style.display = "block";
-}
-function closeCarrydownModal() {
-    document.getElementById("carrydownModal").style.display = "none";
-}
+function openCarrydownModal() { document.getElementById("carrydownModal").style.display = "block"; }
+function closeCarrydownModal() { document.getElementById("carrydownModal").style.display = "none"; }
 
 // Enable Bootstrap tooltips
 var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-  return new bootstrap.Tooltip(tooltipTriggerEl)
-})
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) })
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
