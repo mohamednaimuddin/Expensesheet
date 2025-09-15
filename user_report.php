@@ -295,7 +295,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             <?php if(count($paged_expenses) > 0): $si = $offset + 1; foreach($paged_expenses as $row): ?>
             <tr>
                 <td class="text-center"><?= $si ?></td>
-                <td><?= date("d M", strtotime($row['date'])) ?></td>
+                <td><?= date("d", strtotime($row['date'])) . "&nbsp;" . date("M", strtotime($row['date'])) ?></td>
                 <td><?= htmlspecialchars($row['type']) ?></td>
                 <td><?= htmlspecialchars($row['division']) ?></td>
                 <td><?= htmlspecialchars($row['company']) ?></td>
@@ -371,7 +371,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             <?php if(count($all_expenses) > 0): $si = 1; foreach($all_expenses as $row): ?>
             <tr>
                 <td class="text-center"><?= $si ?></td>
-                <td><?= date("d M", strtotime($row['date'])) ?></td>
+                <td><?= date("d", strtotime($row['date'])) . "&nbsp;" . date("M", strtotime($row['date'])) ?></td>
                 <td><?= htmlspecialchars($row['type']) ?></td>
                 <td><?= htmlspecialchars($row['division']) ?></td>
                 <td><?= htmlspecialchars($row['company']) ?></td>
