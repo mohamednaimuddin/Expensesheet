@@ -30,7 +30,7 @@ if ($result->num_rows > 0) {
     <h2>Add Fuel Expense</h2>
     <form action="add_fuel.php" method="POST">
       <label>Date:</label>
-      <input type="text" name="date" id="fuelDate" placeholder="dd-mm-yyyy" required>
+      <input type="text" name="date" id="fuelDate" placeholder="dd-mm-yyyy" required class="datemandatory">
 
       <label>Division:</label>
       <select name="division" required>
@@ -87,7 +87,7 @@ if ($result->num_rows > 0) {
     <h2>Add Food Expense</h2>
     <form action="add_food.php" method="POST">
       <label>Date:</label>
-      <input type="text" name="date" id="foodDate" placeholder="dd-mm-yyyy" required>
+      <input type="text" name="date" id="foodDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
 
       <label>Division:</label>
       <select name="division" required>
@@ -141,7 +141,7 @@ if ($result->num_rows > 0) {
     <h2>Add Room Expense</h2>
     <form action="add_room_expense.php" method="POST">
       <label>Date:</label>
-      <input type="text" name="date" id="roomDate" placeholder="dd-mm-yyyy" required>
+      <input type="text" name="date" id="roomDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
 
       <label>Division:</label>
       <select name="division" required>
@@ -198,7 +198,7 @@ if ($result->num_rows > 0) {
     <h2>Add Tools Expense</h2>
     <form action="add_tools_expense.php" method="POST">
       <label>Date:</label>
-      <input type="text" name="date" id="toolsDate" placeholder="dd-mm-yyyy" required>
+      <input type="text" name="date" id="toolsDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
 
       <label>Region:</label>
       <select name="region" required>
@@ -233,7 +233,7 @@ if ($result->num_rows > 0) {
     <form action="add_labour_expense.php" method="POST">
       
     <label>Date:</label>
-    <input type="text" name="date" id="labourDate" placeholder="dd-mm-yyyy" required>
+    <input type="text" name="date" id="labourDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
 
 
       <label>Division:</label>
@@ -292,7 +292,7 @@ if ($result->num_rows > 0) {
     <h2>Add Other Expense</h2>
     <form action="add_other_expense.php" method="POST">
       <label>Date:</label>
-      <input type="text" name="date" id="otherDate" placeholder="dd-mm-yyyy" required>
+      <input type="text" name="date" id="otherDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
 
       <label>Division:</label>
       <select name="division" id="otherDivision" required>
@@ -350,7 +350,7 @@ if ($result->num_rows > 0) {
     <h2>Add Accessories Expense</h2>
     <form action="add_accessories.php" method="POST">
       <label> Date : </label>
-      <input type="text" name="date" id="accessoriesDate" placeholder="dd-mm-yyy" required>
+      <input type="text" name="date" id="accessoriesDate" placeholder="dd-mm-yyy" class="datemandatory" required>
 
       <label>Division</label>
       <select name ="division" required>
@@ -408,7 +408,7 @@ if ($result->num_rows > 0) {
     <form action="add_tv.php" method="POST" enctype="multipart/form-data">
       
       <label> Date : </label>
-      <input type="date" name="date" id="tvDate" placeholder="dd-mm-yyy" required>
+      <input type="date" name="date" id="tvDate" placeholder="dd-mm-yyy" class="datemandatory" required>
 
       <label>Division</label>
       <select name ="division" required>
@@ -483,7 +483,7 @@ if ($result->num_rows > 0) {
     <form action="add_vehicle_expense.php" method="POST">
       
       <label>Date:</label>
-      <input type="date" id="vehicleDate" name="date" class="form-control" required>
+      <input type="date" id="vehicleDate" name="date" class="form-control datemandatory" required>
 
 
       <label>Vehicle:</label>
@@ -568,6 +568,38 @@ function toggleTVFields(type) {
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
+
+document.addEventListener('DOMContentLoaded', function () {
+    // Function to enable/disable submit buttons based on date input
+    function updateButtonState(input) {
+        const form = input.closest('form');
+        if (!form) return;
+        const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+        if (!submitButton) return;
+
+        if (input.value.trim() === '') {
+            submitButton.disabled = true;
+        } else {
+            submitButton.disabled = false;
+        }
+    }
+
+    // Find all date inputs with class 'datemandatory'
+    const dateInputs = document.querySelectorAll('.datemandatory');
+
+    dateInputs.forEach(input => {
+        updateButtonState(input); // Initial state on load
+
+        input.addEventListener('input', () => {
+            updateButtonState(input);
+        });
+
+        input.addEventListener('change', () => {
+            updateButtonState(input);
+        });
+    });
+});
+
     // Attach flatpickr to each unique input
     flatpickr("#fuelDate", { dateFormat: "d-m-Y", maxDate: "today" });
 flatpickr("#foodDate", { dateFormat: "d-m-Y", maxDate: "today" });
