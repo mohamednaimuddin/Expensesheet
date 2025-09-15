@@ -282,7 +282,7 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
             <?php if(count($all_expenses) > 0): $si=1; foreach($all_expenses as $row): ?>
             <tr>
                 <td><?= $si ?></td>
-                <td><?= htmlspecialchars($row['date']) ?></td>
+                <td><?= date("d", strtotime($row['date'])) . "&nbsp;" . date("M", strtotime($row['date'])) ?></td>
                 <td><?= htmlspecialchars($row['type']) ?></td> <!-- Display Type -->
                 <td><?= htmlspecialchars($row['division']) ?></td>
                 <td><?= htmlspecialchars($row['company']) ?></td>
