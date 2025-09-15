@@ -569,15 +569,60 @@ function toggleTVFields(type) {
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
     // Attach flatpickr to each unique input
-    flatpickr("#fuelDate", { dateFormat: "d-m-Y" });
-    flatpickr("#foodDate", { dateFormat: "d-m-Y" });
-    flatpickr("#roomDate", { dateFormat: "d-m-Y" });
-    flatpickr("#otherDate", { dateFormat: "d-m-Y" });
-    flatpickr("#labourDate", { dateFormat: "d-m-Y" });
-    flatpickr("#accessoriesDate", { dateFormat: "d-m-Y" });
-    flatpickr("#tvDate", { dateFormat: "d-m-Y" });
-    flatpickr("#vehicleDate", { dateFormat: "Y-m-d" });
+    flatpickr("#fuelDate", { dateFormat: "d-m-Y", maxDate: "today" });
+flatpickr("#foodDate", { dateFormat: "d-m-Y", maxDate: "today" });
+flatpickr("#roomDate", { dateFormat: "d-m-Y", maxDate: "today" });
+flatpickr("#otherDate", { dateFormat: "d-m-Y", maxDate: "today" });
+flatpickr("#labourDate", { dateFormat: "d-m-Y", maxDate: "today" });
+flatpickr("#accessoriesDate", { dateFormat: "d-m-Y", maxDate: "today" });
+flatpickr("#tvDate", { dateFormat: "d-m-Y", maxDate: "today" });
+flatpickr("#vehicleDate", { dateFormat: "Y-m-d", maxDate: "today" });
 
+
+// Validate that the date is not in the future
+function isValidDate(dateStr) {
+    const [day, month, year] = dateStr.split('-').map(Number);
+    const inputDate = new Date(year, month - 1, day);
+    const today = new Date();
+
+    return inputDate <= today;
+}
+
+// Add listener to each form to validate date
+document.addEventListener('DOMContentLoaded', function () {
+    const forms = document.querySelectorAll('form');
+
+    forms.forEach(form => {
+        form.addEventListener('submit', function (e) {
+            const dateInput = form.querySelector('input[type="text"][name="date"], input[type="date"][name="date"]');
+            if (dateInput) {
+                let dateValue = dateInput.value.trim();
+
+                if (!dateValue) {
+                    alert("Please enter a date.");
+                    dateInput.focus();
+                    e.preventDefault();
+                    return false;
+                }
+
+                // If input is of type "date", convert it to d-m-Y for consistent validation
+                if (dateInput.type === "date") {
+                    const dateObj = new Date(dateValue);
+                    dateValue = ("0" + dateObj.getDate()).slice(-2) + "-" +
+                                ("0" + (dateObj.getMonth() + 1)).slice(-2) + "-" +
+                                dateObj.getFullYear();
+                }
+
+                if (!isValidDate(dateValue)) {
+                    alert("The date cannot be in the future.");
+                    dateInput.focus();
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
+    });
+});
 
 
 
