@@ -266,9 +266,9 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
     <table class="table align-middle">
         <thead class="table" style="background-color:grey;">
             <tr>
-                <th>SI. No</th>
+                <th style="width:50px; text-align:center;">SI. No</th>
                 <th>Date</th>
-                <th>Type</th> <!-- Added Type column -->
+                <th>Type</th>
                 <th>Division</th>
                 <th>Company</th>
                 <th>Location</th>
@@ -281,9 +281,9 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
         <tbody>
             <?php if(count($all_expenses) > 0): $si=1; foreach($all_expenses as $row): ?>
             <tr>
-                <td><?= $si ?></td>
+                <td style="text-align:center;"><?= $si ?></td>
                 <td><?= date("d", strtotime($row['date'])) . "&nbsp;" . date("M", strtotime($row['date'])) ?></td>
-                <td><?= htmlspecialchars($row['type']) ?></td> <!-- Display Type -->
+                <td><?= htmlspecialchars($row['type']) ?></td>
                 <td><?= htmlspecialchars($row['division']) ?></td>
                 <td><?= htmlspecialchars($row['company']) ?></td>
                 <td><?= htmlspecialchars($row['location']) ?></td>
@@ -316,6 +316,7 @@ usort($all_expenses, function($a, $b) { return strtotime($a['date']) <=> strtoti
         </tfoot>
     </table>
 </div>
+
 
 <div style="text-align:right; margin-top:10px;">
     <button onclick="window.location='manage_advance.php?username=<?= urlencode($username) ?>'">Manage Advances</button>
