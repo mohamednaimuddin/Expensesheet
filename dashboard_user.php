@@ -185,15 +185,15 @@ footer { background: #ecf0f1; color: #333; padding: 15px 0; text-align: center; 
 
     <!-- Expense Cards -->
     <div class="row g-4 mt-4">
-        <div class="col-md-3"><div class="card-expense fuel" onclick="openPopup('fuelPopup')"><i class="bi bi-fuel-pump"></i><h5>⛽ Fuel</h5><p>SAR <?php echo number_format($category_totals['fuel_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense food" onclick="openPopup('foodPopup')"><i class="bi bi-egg-fried"></i><h5>🍽️ Food</h5><p>SAR <?php echo number_format($category_totals['food_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense room" onclick="openPopup('roomPopup')"><i class="bi bi-house-door"></i><h5>🏨 Hotel</h5><p>SAR <?php echo number_format($category_totals['room_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense other" onclick="openPopup('otherPopup')"><i class="bi bi-lightbulb"></i><h5>💡 Other</h5><p>SAR <?php echo number_format($category_totals['other_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense tools" onclick="openPopup('toolsPopup')"><i class="bi bi-tools"></i><h5>🛠️ Tools</h5><p>SAR <?php echo number_format($category_totals['tools_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense labour" onclick="openPopup('labourPopup')"><i class="bi bi-person-workspace"></i><h5>👷 Labour</h5><p>SAR <?php echo number_format($category_totals['labour_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense accessories" onclick="openPopup('accessoriesPopup')"><i class="bi bi-bag"></i><h5>🎒 Accessories</h5><p>SAR <?php echo number_format($category_totals['accessories_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense tv" onclick="openPopup('tvPopup')"><i class="bi bi-tv"></i><h5>📺 TV</h5><p>SAR <?php echo number_format($category_totals['tv_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense vehicle" onclick="openPopup('vehiclePopup')"><i class="bi bi-car-front"></i><h5>🚗 Vehicle</h5><p>SAR <?php echo number_format($category_totals['vehicle_expense'], 2); ?></p></div></div>
+        <div class="col-md-3"><div class="card-expense fuel" onclick="openPopup('fuelPopup')"><i class="bi bi-fuel-pump"></i><h5>⛽ Fuel</h5></div></div>
+        <div class="col-md-3"><div class="card-expense food" onclick="openPopup('foodPopup')"><i class="bi bi-egg-fried"></i><h5>🍽️ Food</h5></div></div>
+        <div class="col-md-3"><div class="card-expense room" onclick="openPopup('roomPopup')"><i class="bi bi-house-door"></i><h5>🏨 Hotel</h5></p></div></div>
+        <div class="col-md-3"><div class="card-expense other" onclick="openPopup('otherPopup')"><i class="bi bi-lightbulb"></i><h5>💡 Other</h5></p></div></div>
+        <div class="col-md-3"><div class="card-expense tools" onclick="openPopup('toolsPopup')"><i class="bi bi-tools"></i><h5>🛠️ Tools</h5></div></div>
+        <div class="col-md-3"><div class="card-expense labour" onclick="openPopup('labourPopup')"><i class="bi bi-person-workspace"></i><h5>👷 Labour</h5></div></div>
+        <div class="col-md-3"><div class="card-expense accessories" onclick="openPopup('accessoriesPopup')"><i class="bi bi-bag"></i><h5>🎒 Accessories</h5></div></div>
+        <div class="col-md-3"><div class="card-expense tv" onclick="openPopup('tvPopup')"><i class="bi bi-tv"></i><h5>📺 TV</h5></div></div>
+        <div class="col-md-3"><div class="card-expense vehicle" onclick="openPopup('vehiclePopup')"><i class="bi bi-car-front"></i><h5>🚗 Vehicle</h5></div></div>
     </div>
 </div>
 
