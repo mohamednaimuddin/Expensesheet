@@ -426,11 +426,11 @@ if ($result->num_rows > 0) {
     <h2>Add TV Expense</h2>
     <form action="add_tv.php" method="POST" enctype="multipart/form-data">
       
-      <label> Date : </label>
-      <input type="date" name="date" id="tvDate" placeholder="dd-mm-yyy" class="datemandatory" required>
+      <label>Date:</label>
+      <input type="date" name="date" id="tvDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
 
-      <label>Division</label>
-      <select name ="division" required>
+      <label>Division:</label>
+      <select name="division" required>
         <option value="">-- Select Division --</option>
         <option value="Sales">Sales</option>
         <option value="Project">Project</option>
@@ -438,9 +438,9 @@ if ($result->num_rows > 0) {
         <option value="Installation">Installation</option>
       </select>
 
-      <label>Region</label>
+      <label>Region:</label>
       <select name="region" required>
-        <option value="">-- Select Region--</option>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -469,14 +469,13 @@ if ($result->num_rows > 0) {
       </div>
       <br>
 
-      <!-- Description Fields -->
       <div style="margin-bottom: 10px;">
         <label>Description:</label>
         <textarea name="description" rows="3" style="width:100%;" required></textarea>
       </div>
 
       <div id="updatedDescriptionField" style="display:none; margin-bottom: 10px;">
-        <label> Old TV Description:</label>
+        <label>Old TV Description:</label>
         <textarea name="updated_description" rows="3" style="width:100%;"></textarea>
       </div>
 
@@ -494,6 +493,7 @@ if ($result->num_rows > 0) {
     </form>
   </div>
 </div>
+
 
 <!-- ✅ Vehicle Expense Popup -->
 <div class="popup" id="vehiclePopup">
@@ -568,29 +568,47 @@ window.onclick = function(e){
         if(e.target==p) p.classList.remove('active');
     });
 }
-</script>
-<script>
 function toggleTVFields(type) {
+  const oldDescField = document.getElementById("updatedDescriptionField");
+  const oldDescTextarea = oldDescField.querySelector("textarea");
+
   if (type === 'NEW') {
-    document.getElementById("updatedDescriptionField").style.display = "block";
+    oldDescField.style.display = "block";
+    oldDescTextarea.setAttribute("required", "required");
   } else {
-    document.getElementById("updatedDescriptionField").style.display = "none";
+    oldDescField.style.display = "none";
+    oldDescTextarea.removeAttribute("required");
   }
 }
-</script>
 
-<script>
+
 function toggleTVFields(type) {
+  const oldDescField = document.getElementById("updatedDescriptionField");
+  const oldDescTextarea = oldDescField.querySelector("textarea");
+
   if (type === 'NEW') {
-    document.getElementById("updatedDescriptionField").style.display = "block";
+    oldDescField.style.display = "block";
+    oldDescTextarea.setAttribute("required", "required");
   } else {
-    document.getElementById("updatedDescriptionField").style.display = "none";
+    oldDescField.style.display = "none";
+    oldDescTextarea.removeAttribute("required");
   }
 }
-</script>
 
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script>
+// Run this on page load in case of edit mode or pre-selected option
+window.onload = function() {
+  const selectedType = document.querySelector('input[name="tv_type"]:checked');
+  if (selectedType) {
+    toggleTVFields(selectedType.value);
+  }
+}
+
+// Example function to close popup (you can adjust this as needed)
+function closePopup(popupId) {
+  document.getElementById(popupId).style.display = 'none';
+}
+
+
 
 document.addEventListener('DOMContentLoaded', function () {
     // Function to enable/disable submit buttons based on date input
@@ -705,6 +723,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 </script>
-
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </body>
 </html>
