@@ -43,6 +43,7 @@ if ($result->num_rows > 0) {
 
       <label>Region:</label>
       <select name="region" required>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -51,6 +52,7 @@ if ($result->num_rows > 0) {
 
       <label>Company:</label>
       <select name="company" required>
+        <option value="">-- Select Company --</option>
         <option value="Redtag">Redtag</option>
         <option value="Landmark">Landmark</option>
         <option value="Apparel">Apparel</option>
@@ -71,6 +73,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">--Bill--</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
@@ -100,6 +103,7 @@ if ($result->num_rows > 0) {
 
       <label>Region:</label>
       <select name="region" required>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -108,6 +112,7 @@ if ($result->num_rows > 0) {
 
       <label>Company:</label>
       <select name="company" required>
+        <option value="">-- Select Company --</option>
         <option value="Redtag">Redtag</option>
         <option value="Landmark">Landmark</option>
         <option value="Apparel">Apparel</option>
@@ -154,6 +159,7 @@ if ($result->num_rows > 0) {
 
       <label>Region:</label>
       <select name="region" required>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -162,6 +168,7 @@ if ($result->num_rows > 0) {
 
       <label>Company:</label>
       <select name="company" required>
+        <option value="">-- Select Company --</option>
         <option value="Redtag">Redtag</option>
         <option value="Landmark">Landmark</option>
         <option value="Apparel">Apparel</option>
@@ -182,6 +189,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">-- Bill --</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
@@ -202,6 +210,7 @@ if ($result->num_rows > 0) {
 
       <label>Region:</label>
       <select name="region" required>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -216,6 +225,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">-- Select Bill --</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
@@ -247,6 +257,7 @@ if ($result->num_rows > 0) {
 
       <label>Region:</label>
       <select name="region" required>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -255,6 +266,7 @@ if ($result->num_rows > 0) {
 
       <label>Company:</label>
       <select name="company" required>
+        <option value="">-- Select Company --</option>
         <option value="Redtag">Redtag</option>
         <option value="Landmark">Landmark</option>
         <option value="Apparel">Apparel</option>
@@ -275,6 +287,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">-- Bill --</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
@@ -306,6 +319,7 @@ if ($result->num_rows > 0) {
 
       <label>Region:</label>
       <select name="region" id="otherRegion" required>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -314,6 +328,7 @@ if ($result->num_rows > 0) {
 
       <label>Company:</label>
       <select name="company" id="otherCompany" required>
+        <option value="">-- Select Company --</option>
         <option value="Redtag">Redtag</option>
         <option value="Landmark">Landmark</option>
         <option value="Apparel">Apparel</option>
@@ -334,6 +349,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">-- Bill --</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
@@ -363,6 +379,7 @@ if ($result->num_rows > 0) {
 
       <label>Region</label>
       <select name="region" required>
+        <option value="">-- Select Region --</option>
         <option value="Dammam">Dammam</option>
         <option value="Riyadh">Riyadh</option>
         <option value="Jeddah">Jeddah</option>
@@ -371,6 +388,7 @@ if ($result->num_rows > 0) {
 
       <label>Company:</label>
       <select name="company" required>
+        <option value="">-- Select Company --</option>
         <option value="Redtag">Redtag</option>
         <option value="Landmark">Landmark</option>
         <option value="Apparel">Apparel</option>
@@ -391,6 +409,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">-- Select Bill --</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
@@ -430,7 +449,7 @@ if ($result->num_rows > 0) {
 
       <label>Company:</label>
       <select name="company" required>
-        <option value="">-- Select company --</option>
+        <option value="">-- Select Company --</option>
         <option value="Redtag">Redtag</option>
         <option value="Landmark">Landmark</option>
         <option value="Apparel">Apparel</option>
@@ -466,6 +485,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">-- Select Bill --</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
@@ -514,6 +534,8 @@ if ($result->num_rows > 0) {
         <option>Brake Pad</option>
         <option>Brake Oil</option>
         <option>Fuel Injection</option>
+        <option>Battery</option>
+        <option>Car wash</option>
         <option>Other</option>
       </select>
 
@@ -528,6 +550,7 @@ if ($result->num_rows > 0) {
 
       <label>Bill:</label>
       <select name="bill" required>
+        <option value="">-- Select Bill --</option>
         <option value="Yes">Yes</option>
         <option value="No">No</option>
       </select>
