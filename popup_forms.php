@@ -595,7 +595,6 @@ function toggleTVFields(type) {
   }
 }
 
-//description cant use . or signle character
 document.addEventListener("DOMContentLoaded", function () {
     const forms = document.querySelectorAll('form');
 
@@ -606,7 +605,7 @@ document.addEventListener("DOMContentLoaded", function () {
             for (let field of descriptionFields) {
                 const value = field.value.trim();
 
-                // 1. Check for period
+                // Block period
                 if (value.includes('.')) {
                     alert("Description cannot contain a period (.)");
                     field.focus();
@@ -614,13 +613,27 @@ document.addEventListener("DOMContentLoaded", function () {
                     return false;
                 }
 
-                // 2. Check for single-character descriptions (excluding white space)
+                // Block short descriptions
                 const stripped = value.replace(/\s/g, '');
                 if (stripped.length < 2) {
-                    alert("Description must be at least 2 characters (excluding spaces).");
+                    alert("Enter proper Description ");
                     field.focus();
                     e.preventDefault();
                     return false;
+                }
+            }
+
+            // Vehicle KM validation
+            if (form.action.includes('add_vehicle_expense.php')) {
+                const kmInput = form.querySelector('input[name="km_reading"]');
+                if (kmInput) {
+                    const kmValue = parseInt(kmInput.value.trim(), 10);
+                    if (isNaN(kmValue) || kmValue < 10) {
+                        alert("kindly enter valid KM reading .");
+                        kmInput.focus();
+                        e.preventDefault();
+                        return false;
+                    }
                 }
             }
         });
