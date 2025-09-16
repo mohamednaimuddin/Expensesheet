@@ -595,6 +595,38 @@ function toggleTVFields(type) {
   }
 }
 
+//description cant use . or signle character
+document.addEventListener("DOMContentLoaded", function () {
+    const forms = document.querySelectorAll('form');
+
+    forms.forEach(form => {
+        form.addEventListener('submit', function (e) {
+            const descriptionFields = form.querySelectorAll('textarea[name="description"], textarea[name="updated_description"]');
+
+            for (let field of descriptionFields) {
+                const value = field.value.trim();
+
+                // 1. Check for period
+                if (value.includes('.')) {
+                    alert("Description cannot contain a period (.)");
+                    field.focus();
+                    e.preventDefault();
+                    return false;
+                }
+
+                // 2. Check for single-character descriptions (excluding white space)
+                const stripped = value.replace(/\s/g, '');
+                if (stripped.length < 2) {
+                    alert("Description must be at least 2 characters (excluding spaces).");
+                    field.focus();
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
+    });
+});
+
 // Run this on page load in case of edit mode or pre-selected option
 window.onload = function() {
   const selectedType = document.querySelector('input[name="tv_type"]:checked');
