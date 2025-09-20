@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <label class="form-label">Division</label>
                                 <select name="division" id="division" class="form-select" <?= $is_tools ? 'disabled' : 'required' ?>>
                                     <option value="">-- Select Division --</option>
-                                    <?php foreach(['Sales','Project','Service','Installation','Recharge'] as $div): ?>
+                                    <?php foreach(['Sales','Project','Service','Installation','Recharge','Other'] as $div): ?>
                                         <option value="<?= $div ?>" <?= $expense['division']==$div?'selected':'' ?>><?= $div ?></option>
                                     <?php endforeach; ?>
                                 </select>

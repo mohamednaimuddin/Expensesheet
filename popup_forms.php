@@ -315,6 +315,7 @@ if ($result->num_rows > 0) {
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
         <option value="Recharge">Recharge</option>
+        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>

@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="mb-3">
                 <label class="form-label">Company</label>
                 <select id="company" name="company" class="form-select" 
-                    <?= ($is_tools || (!$is_labour && in_array($expense['division'], ['Recharge','Other']))) ? 'disabled' : 'required' ?>>
+                    <?= ($is_tools || (!$is_labour && in_array($expense['division'], ['Recharge']))) ? 'disabled' : 'required' ?>>
                     <option value="">-- Select Company --</option>
                     <option value="Redtag" <?= $expense['company']=='Redtag'?'selected':'' ?>>Redtag</option>
                     <option value="Landmark" <?= $expense['company']=='Landmark'?'selected':'' ?>>Landmark</option>
@@ -172,14 +172,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label class="form-label">Location</label>
                 <input type="text" id="location" name="location" class="form-control"
                        value="<?= htmlspecialchars($expense['location']); ?>"
-                       <?= ($is_tools || (!$is_labour && in_array($expense['division'], ['Recharge','Other']))) ? 'disabled' : 'required' ?>>
+                       <?= ($is_tools || (!$is_labour && in_array($expense['division'], ['Recharge']))) ? 'disabled' : 'required' ?>>
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Store</label>
                 <input type="text" id="store" name="store" class="form-control"
                        value="<?= htmlspecialchars($expense['store']); ?>"
-                       <?= ($is_tools || (!$is_labour && in_array($expense['division'], ['Recharge','Other']))) ? 'disabled' : 'required' ?>>
+                       <?= ($is_tools || (!$is_labour && in_array($expense['division'], ['Recharge']))) ? 'disabled' : 'required' ?>>
             </div>
 
             <div class="mb-3">
@@ -211,7 +211,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const isLabour = <?= $is_labour ? 'true' : 'false' ?>;
 
     function toggleFields() {
-        if (isTools || (!isLabour && (divisionSelect.value === 'Recharge' || divisionSelect.value === 'Other'))) {
+        if (isTools || (!isLabour && (divisionSelect.value === 'Recharge'))) {
             companyField.disabled = true;
             storeField.disabled = true;
             locationField.disabled = true;
