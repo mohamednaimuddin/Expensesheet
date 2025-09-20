@@ -503,7 +503,7 @@ if ($result->num_rows > 0) {
     <form action="add_vehicle_expense.php" method="POST">
       
       <label>Date:</label>
-      <input type="date" id="vehicleDate" name="date" class="form-control datemandatory" required>
+      <input type="date" id="vehicleDate" name="date" class="datemandatory" required>
 
 
       <label>Vehicle:</label>
@@ -569,27 +569,25 @@ window.onclick = function(e){
     });
 }
 function toggleTVFields(type) {
+  const descField = document.querySelector('#tvPopup textarea[name="description"]').parentElement;
+  const descTextarea = descField.querySelector("textarea");
   const oldDescField = document.getElementById("updatedDescriptionField");
   const oldDescTextarea = oldDescField.querySelector("textarea");
 
   if (type === 'NEW') {
+    descField.style.display = "block";
+    descTextarea.setAttribute("required", "required");
     oldDescField.style.display = "block";
     oldDescTextarea.setAttribute("required", "required");
-  } else {
+  } else if (type === 'REPAIRED') {
+    descField.style.display = "block";
+    descTextarea.setAttribute("required", "required");
     oldDescField.style.display = "none";
     oldDescTextarea.removeAttribute("required");
-  }
-}
-
-
-function toggleTVFields(type) {
-  const oldDescField = document.getElementById("updatedDescriptionField");
-  const oldDescTextarea = oldDescField.querySelector("textarea");
-
-  if (type === 'NEW') {
-    oldDescField.style.display = "block";
-    oldDescTextarea.setAttribute("required", "required");
   } else {
+    // Default: show only Description
+    descField.style.display = "block";
+    descTextarea.setAttribute("required", "required");
     oldDescField.style.display = "none";
     oldDescTextarea.removeAttribute("required");
   }
@@ -603,6 +601,9 @@ document.addEventListener("DOMContentLoaded", function () {
             const descriptionFields = form.querySelectorAll('textarea[name="description"], textarea[name="updated_description"]');
 
             for (let field of descriptionFields) {
+                // Only validate visible fields
+                if (field.offsetParent === null) continue;
+
                 const value = field.value.trim();
 
                 // Block period
