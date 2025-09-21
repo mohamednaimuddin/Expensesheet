@@ -7,7 +7,14 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 
 include 'config.php';
 $message = '';
-
+// Fetch companies for dropdown
+$companies = [];
+$result = $conn->query("SELECT id, company_name FROM companies ORDER BY company_name ASC");
+if ($result && $result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        $companies[] = $row;
+    }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $full_name = isset($_POST['full_name']) ? trim($_POST['full_name']) : '';
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
@@ -28,8 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
-            $stmt = $conn->prepare("INSERT INTO users (full_name, username, password, email, number, role) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssssss", $full_name, $username, $hashed_password, $email, $number, $role);
+           $company_id = isset($_POST['company_id']) ? intval($_POST['company_id']) : NULL;
+
+$stmt = $conn->prepare("INSERT INTO users (full_name, username, password, email, number, role, company_id) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("ssssssi", $full_name, $username, $hashed_password, $email, $number, $role, $company_id);
+
 
             if ($stmt->execute()) {
                 $message = "User added successfully!";
@@ -153,6 +164,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <option value="user">User</option>
             <option value="admin">Admin</option>
         </select>
+        <label>Company:</label>
+<select name="company_id" required>
+    <option value="">-- Select Company --</option>
+    <?php foreach ($companies as $company): ?>
+        <option value="<?php echo $company['id']; ?>">
+            <?php echo htmlspecialchars($company['company_name']); ?>
+        </option>
+    <?php endforeach; ?>
+</select>
 
         <div class="button-group">
             <button type="submit">Add User</button>
