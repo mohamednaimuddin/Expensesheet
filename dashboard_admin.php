@@ -17,6 +17,12 @@ foreach($tables as $table) {
         $pending_bill_count += $res->fetch_assoc()['cnt'];
     }
 }
+// Get logged-in admin's company
+$admin_company_result = $conn->query("SELECT company_id FROM users WHERE username='$username' LIMIT 1");
+$admin_company_id = '';
+if($admin_company_result && $admin_company_result->num_rows > 0){
+    $admin_company_id = $admin_company_result->fetch_assoc()['company_id'];
+}
 
 
 // Fetch summary data
@@ -38,7 +44,18 @@ $result = $conn->query("
 $pending_bills = $result['total'];
 
 // Fetch all non-admin users
-$users_result = $conn->query("SELECT username, full_name, role FROM users WHERE role='user' ORDER BY full_name ASC");
+// Get logged-in admin's company_id
+$admin_company_result = $conn->query("SELECT company_id FROM users WHERE username='$username' LIMIT 1");
+$admin_company_id = '';
+if($admin_company_result && $admin_company_result->num_rows > 0){
+    $admin_company_id = $admin_company_result->fetch_assoc()['company_id'];
+}
+
+// Fetch all non-admin users of the same company
+$users_result = $conn->query("SELECT username, full_name, role, company_id 
+                              FROM users 
+                              WHERE role='user' AND company_id='$admin_company_id' 
+                              ORDER BY full_name ASC");
 ?>
 <!DOCTYPE html>
 <html lang="en">
