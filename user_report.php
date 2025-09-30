@@ -231,7 +231,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('assets/vision1.png') no-repeat center center; background-size: 50%; opacity: 0.05; z-index: 9999; pointer-events: none; background-color: #aeb6bd; }
     table { width: 100%; border-collapse: collapse; border: 2px solid black; page-break-inside: auto; }
     thead { display: table-header-group; }
-    tfoot { display: table-footer-group; }
+    tfoot { display: table-row-group; }
     tr { page-break-inside: avoid; page-break-after: auto; }
     th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; color: black; }
     th, td { border: 0.5px solid black; padding: 4px 6px; font-size: 11px; text-align: left; word-wrap: break-word; color: black; }
@@ -250,7 +250,6 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
 <body>
 
 <div class="report-header">
-    <img src="assets/visionlogo.jpg" alt="Company Logo">
     <h2>Expense Report</h2>
     <div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></div>
 </div>
