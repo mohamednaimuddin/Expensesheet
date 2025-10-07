@@ -29,10 +29,14 @@ $region_filter = $_GET['region'] ?? 'All';
 // Fetch expenses function (only submitted=1)
 function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', $region = 'All') {
     if ($table === 'vehicle_expense') {
-    $sql = "SELECT id, username, CONCAT(service, ' - ', description) AS description, amount, date,
-                   '' as division, '' as company, '' as location, '' as store, '' as region
-            FROM vehicle_expense 
-            WHERE username=? AND submitted=1";
+    $sql = "SELECT ve.id, ve.username,
+               CONCAT(v.model, ' - ', v.number_plate, ' - ', ve.service, ' - ', ve.description) AS description,
+               ve.amount, ve.date,
+               '' as division, '' as company, '' as location, '' as store, '' as region
+        FROM vehicle_expense ve
+        LEFT JOIN vehicle v ON ve.vehicle_id = v.id
+        WHERE ve.username=? AND ve.submitted=1";
+
 }
  else {
         $sql = "SELECT id, username, description, amount, date, division, company, location, store, region
