@@ -64,6 +64,12 @@ $start_date = $_GET['start_date'] ?? '';
 $end_date   = $_GET['end_date'] ?? '';
 $mode       = $_GET['mode'] ?? '';
 
+// If no filter applied, default to current month
+if (empty($start_date) && empty($end_date)) {
+    $start_date = date('Y-m-01'); // first day of current month
+    $end_date = date('Y-m-t');     // last day of current month
+}
+
 // Build SQL query with filters
 $sql = "SELECT * FROM adv_amt WHERE username = ?";
 $params = [$username];
@@ -98,7 +104,7 @@ $adv_result = $stmt->get_result();
 <title>Manage Advances</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="icon" type="image/png" href="assets\vision.ico">
+<link rel="icon" type="image/png" href="assets/vision.ico">
 
 <style>
     @media print {
@@ -142,7 +148,7 @@ $adv_result = $stmt->get_result();
                 <option value="">All</option>
                 <option value="Cash" <?php if($mode=='Cash') echo 'selected'; ?>>Cash</option>
                 <option value="Al Rajhi Bank" <?php if($mode=='Al Rajhi Bank') echo 'selected'; ?>>Al Rajhi Bank</option>
-                <option value="SNB Bank" <?php if($mode=='SNB Bank') echo 'selected'; ?>>SNB Bank</option>Balance C/D
+                <option value="SNB Bank" <?php if($mode=='SNB Bank') echo 'selected'; ?>>SNB Bank</option>
                 <option value="Balance C/D" <?php if($mode=='Balance C/D') echo 'selected'; ?>>Balance C/D</option>
             </select>
         </div>
