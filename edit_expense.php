@@ -60,16 +60,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $location    = $_POST['location'] ?? '';
     $store       = $_POST['store'] ?? '';
     $date        = $_POST['date'] ?? '';
+    $bill        = $_POST['bill'] ?? '';
 
-    if ($is_vehicle) {
-        // Vehicle: only service and amount editable
+    if (empty($bill)) {
+        $error = "Please select Bill option.";
+    } else if ($is_vehicle) {
+        // Vehicle: only service, amount, and bill editable
         if (empty($service) || !is_numeric($amount)) {
             $error = "Please fill all required fields correctly.";
         } else {
-            $update = $conn->prepare("UPDATE vehicle_expense SET service=?, amount=? WHERE id=?");
-            $update->bind_param("sdi", $service, $amount, $id);
+            $update = $conn->prepare("UPDATE vehicle_expense SET service=?, amount=?, bill=? WHERE id=?");
+            $update->bind_param("sdsi", $service, $amount, $bill, $id);
             if ($update->execute()) {
-                // Redirect to user_report.php for all expenses
                 header("Location: user_report.php?username=" . urlencode($expense['username']));
                 exit();
             } else {
@@ -85,11 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Please fill all required fields correctly.";
         } else {
             if ($disable_fields) {
-                $update = $conn->prepare("UPDATE $table SET date=?, description=?, amount=? WHERE id=?");
-                $update->bind_param("ssdi", $date, $description, $amount, $id);
+                $update = $conn->prepare("UPDATE $table SET date=?, description=?, amount=?, bill=? WHERE id=?");
+                $update->bind_param("ssdsi", $date, $description, $amount, $bill, $id);
             } else {
-                $update = $conn->prepare("UPDATE $table SET date=?, division=?, company=?, location=?, store=?, description=?, amount=? WHERE id=?");
-                $update->bind_param("ssssssdi", $date, $division, $company, $location, $store, $description, $amount, $id);
+                $update = $conn->prepare("UPDATE $table SET date=?, division=?, company=?, location=?, store=?, description=?, amount=?, bill=? WHERE id=?");
+                $update->bind_param("ssssssdsi", $date, $division, $company, $location, $store, $description, $amount, $bill, $id);
             }
             if ($update->execute()) {
                 header("Location: user_report.php?username=" . urlencode($expense['username']));
@@ -119,19 +121,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form method="POST">
 
         <?php if($is_vehicle): ?>
-            <!-- Vehicle: only service and amount editable -->
+            <!-- Vehicle: only service, amount, and bill editable -->
             <div class="mb-3">
                 <label>Service:</label>
-      <select name="service" class="form-select" required>
-        <option value="">-- Select Service --</option>
-        <option>Engine Oil</option>
-        <option>Gear Oil</option>
-        <option>Tyre</option>
-        <option>Brake Pad</option>
-        <option>Brake Oil</option>
-        <option>Fuel Injection</option>
-        <option>Other</option>
-      </select>
+                <select name="service" class="form-select" required>
+                    <option value="">-- Select Service --</option>
+                    <option <?= $expense['service']=='Engine Oil'?'selected':'' ?>>Engine Oil</option>
+                    <option <?= $expense['service']=='Gear Oil'?'selected':'' ?>>Gear Oil</option>
+                    <option <?= $expense['service']=='Tyre'?'selected':'' ?>>Tyre</option>
+                    <option <?= $expense['service']=='Brake Pad'?'selected':'' ?>>Brake Pad</option>
+                    <option <?= $expense['service']=='Brake Oil'?'selected':'' ?>>Brake Oil</option>
+                    <option <?= $expense['service']=='Fuel Injection'?'selected':'' ?>>Fuel Injection</option>
+                    <option <?= $expense['service']=='Other'?'selected':'' ?>>Other</option>
+                </select>
             </div>
             <div class="mb-3">
                 <label class="form-label">Amount</label>
@@ -193,6 +195,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        value="<?= htmlspecialchars($expense['amount']); ?>" required>
             </div>
         <?php endif; ?>
+
+        <!-- Bill Field -->
+        <div class="mb-3">
+            <label class="form-label">Bill</label>
+            <select name="bill" class="form-select" required>
+                <option value="">-- Select Bill --</option>
+                <option value="Yes" <?= isset($expense['bill']) && $expense['bill'] === 'Yes' ? 'selected' : '' ?>>Yes</option>
+                <option value="No" <?= isset($expense['bill']) && $expense['bill'] === 'No' ? 'selected' : '' ?>>No</option>
+            </select>
+        </div>
 
         <button type="submit" class="btn btn-primary">Update Expense</button>
         <a href="user_report.php?username=<?= urlencode($expense['username']); ?>" class="btn btn-secondary">Cancel</a>
