@@ -20,23 +20,18 @@ $stmt->execute();
 $user_result = $stmt->get_result();
 if ($user_result->num_rows === 0) die("User not found!");
 $full_name = $user_result->fetch_assoc()['full_name'];
-// Get filters
-if (!isset($_GET['from_date']) || !isset($_GET['to_date']) || empty($_GET['from_date']) || empty($_GET['to_date'])) {
-    // Default to current month
-    $from_date = date("Y-m-01"); // first day of current month
-    $to_date = date("Y-m-t");    // last day of current month
+
+// ✅ Default to current month if no dates provided
+if (empty($_GET['from_date']) || empty($_GET['to_date'])) {
+    $from_date = date("Y-m-01");
+    $to_date   = date("Y-m-t");
 } else {
     $from_date = $_GET['from_date'];
-    $to_date = $_GET['to_date'];
+    $to_date   = $_GET['to_date'];
 }
 $region_filter = $_GET['region'] ?? 'All';
 
-// Initialize totals
-$total_carry = 0.0;
-$carrydown_tooltip = "";
-$total_adv = 0.0;
-
-// Fetch expenses function
+// Fetch expenses function (only submitted=1)
 function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', $region = 'All') {
     if ($table === 'vehicle_expense') {
         $sql = "SELECT ve.id, ve.username,
@@ -69,7 +64,6 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
     }
 
     $sql .= " ORDER BY `date` ASC";
-
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         die("Prepare failed: " . $conn->error . " | SQL: " . $sql);
@@ -79,39 +73,68 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
     return $stmt->get_result();
 }
 
-// Pagination
+// Pagination setup
 $limit = 20;
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int) $_GET['page'] : 1;
 if ($page < 1) $page = 1;
 $offset = ($page - 1) * $limit;
 
 // Fetch all expenses
-$expense_tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
+$expense_tables = [
+    'Fuel' => 'fuel_expense',
+    'Food' => 'food_expense',
+    'Room' => 'room_expense',
+    'Other' => 'other_expense',
+    'Tools' => 'tools_expense',
+    'Labour' => 'labour_expense',
+    'Accessories' => 'accessories_expense',
+    'TV' => 'tv_expense',
+    'Vehicle' => 'vehicle_expense'
+];
+
 $expenses_list = [];
-foreach ($expense_tables as $table) {
-    $expenses_list[$table] = get_expenses($conn, $table, $username, $from_date, $to_date, $region_filter);
+foreach ($expense_tables as $type => $table) {
+    $expenses_list[$type] = get_expenses($conn, $table, $username, $from_date, $to_date, $region_filter);
 }
 
-// Combine expenses and calculate total
 $total_amount = 0;
 $all_expenses = [];
 foreach ($expenses_list as $type => $result) {
     while ($row = $result->fetch_assoc()) {
-        $row['type'] = ucfirst($type);
+        $row['type'] = $type;
         $all_expenses[] = $row;
-        $total_amount += floatval($row['amount']);
+        $total_amount += $row['amount'];
     }
 }
 
+// Handle advance submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_advance'])) {
+    $adv_date = $_POST['adv_date'];
+    $adv_amount = $_POST['adv_amount'];
+    if (empty($adv_date) || !is_numeric($adv_amount) || $adv_amount <= 0) {
+        die("Invalid advance data submitted.");
+    }
+    $stmt = $conn->prepare("INSERT INTO adv_amt (date, username, adv_amt) VALUES (?, ?, ?)");
+    $stmt->bind_param("ssd", $adv_date, $username, $adv_amount);
+    $stmt->execute();
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
+// ✅ Initialize to prevent undefined warnings
+$total_carry = 0.0;
+$carrydown_tooltip = "";
+$total_adv = 0.0;
+
 // ----------------------
-// Carrydown Logic
+// Carrydown auto logic
 // ----------------------
 $current_month = date("Y-m");
 $prev_month = date("Y-m", strtotime("-1 month"));
 $first_day_prev = date("Y-m-01", strtotime("-1 month"));
 $last_day_prev  = date("Y-m-t", strtotime("-1 month"));
 
-// Check current month carrydown
+// Check if carrydown exists
 $stmt = $conn->prepare("SELECT id, amount, description FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? LIMIT 1");
 $stmt->bind_param("ss", $username, $current_month);
 $stmt->execute();
@@ -119,18 +142,18 @@ $current_month_carry = $stmt->get_result()->fetch_assoc();
 $carrydown_exists = !empty($current_month_carry);
 
 if (!$carrydown_exists) {
+    // Sum all expenses last month
+    $tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
     $total_prev_expenses = 0.0;
-    foreach ($expense_tables as $table) {
-        $sql = ($table === 'vehicle_expense') 
-            ? "SELECT SUM(amount) as amt FROM vehicle_expense WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?"
-            : "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
+    foreach ($tables as $table) {
+        $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
         $stmt->execute();
         $total_prev_expenses += floatval($stmt->get_result()->fetch_assoc()['amt'] ?? 0);
     }
 
-    // Previous advances
+    // Sum advances last month
     $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
     $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
     $stmt->execute();
@@ -142,7 +165,9 @@ if (!$carrydown_exists) {
     $stmt->execute();
     $prev_carry = floatval($stmt->get_result()->fetch_assoc()['amount'] ?? 0);
 
-    $carrydown_value = ($total_prev_adv + $prev_carry) - $total_prev_expenses;
+    $last_month_balance = ($total_prev_adv + $prev_carry) - $total_prev_expenses;
+
+    $carrydown_value = $last_month_balance;
     $carrydown_desc = "Carryforward from " . date("M Y", strtotime($first_day_prev));
 
     $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
@@ -153,23 +178,17 @@ if (!$carrydown_exists) {
     $carrydown_desc = $current_month_carry['description'];
 }
 
-// Set totals for display
-$total_carry = $carrydown_value;
-$carrydown_tooltip = $carrydown_desc;
+// ✅ Apply values
+$total_carry = $carrydown_value ?? 0;
+$carrydown_tooltip = $carrydown_desc ?? "";
 
-// ----------------------
-// Total Advance for selected range
-// ----------------------
-if ($from_date && $to_date) {
-    $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
-    $stmt->bind_param("sss", $username, $from_date, $to_date);
-    $stmt->execute();
-    $total_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv'] ?? 0);
-}
+// ✅ Fetch advances in selected date range
+$stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
+$stmt->bind_param("sss", $username, $from_date, $to_date);
+$stmt->execute();
+$total_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv'] ?? 0);
 
-// ----------------------
-// Invoice
-// ----------------------
+// Invoice logic (unchanged)
 $stmt = $conn->prepare("SELECT invoice_no FROM invoices WHERE username=? AND from_date=? AND to_date=? AND region=?");
 $stmt->bind_param("ssss", $username, $from_date, $to_date, $region_filter);
 $stmt->execute();
@@ -186,11 +205,12 @@ if ($invoice_result->num_rows > 0) {
     $invoice_no = str_pad($next_invoice, 5, "0", STR_PAD_LEFT);
 }
 
-// Sort expenses by date
-usort($all_expenses, function($a,$b){ return strtotime($a['date']) <=> strtotime($b['date']); });
+// Sort expenses
+usort($all_expenses, fn($a, $b) => strtotime($a['date']) <=> strtotime($b['date']));
 $total_records = count($all_expenses);
 $paged_expenses = array_slice($all_expenses, $offset, $limit);
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
