@@ -309,7 +309,11 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
                 <td>
                     <div class="d-flex flex-column flex-md-row gap-1">
                         <button class="btn btn-warning btn-sm" onclick="window.location='edit_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Edit</button>
-                        <button class="btn btn-danger btn-sm" onclick="if(confirm('Are you sure?')) window.location='delete_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Delete</button>
+                        <?php if($row['type'] === 'TV'): ?>
+    <button class="btn btn-danger btn-sm" onclick="if(confirm('Are you sure?')) window.location='delete_tv.php?id=<?= $row['id'] ?>&username=<?= urlencode($username) ?>'">Delete</button>
+<?php else: ?>
+    <button class="btn btn-danger btn-sm" onclick="if(confirm('Are you sure?')) window.location='delete_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Delete</button>
+<?php endif; ?>
                         <span><?= htmlspecialchars($row['remark'] ?? '') ?></span>
                     </div>
                 </td>
