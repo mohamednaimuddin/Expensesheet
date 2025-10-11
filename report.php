@@ -10,8 +10,14 @@ include 'config.php';
 $username = $_SESSION['username'];
 $full_name = $_SESSION['full_name'] ?? $username;
 
-$from_date = $_GET['from_date'] ?? '';
-$to_date = $_GET['to_date'] ?? '';
+// Default to current month if no filters applied
+if (!isset($_GET['from_date']) || !isset($_GET['to_date'])) {
+    $from_date = date('Y-m-01'); // First day of current month
+    $to_date   = date('Y-m-t');  // Last day of current month
+} else {
+    $from_date = $_GET['from_date'];
+    $to_date   = $_GET['to_date'];
+}
 $region_filter = $_GET['region'] ?? 'All';
 
 // Function to fetch expenses per category
