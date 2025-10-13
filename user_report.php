@@ -1,4 +1,4 @@
-<?php 
+<?php
 session_start();
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: index.php");
@@ -12,6 +12,9 @@ if (!isset($_GET['username']) || empty($_GET['username'])) {
     die("User not specified!");
 }
 $username = $_GET['username'];
+// Initialize carrydown variables
+$total_carry = 0.0;
+$carrydown_tooltip = "";
 
 // Get user full name
 $stmt = $conn->prepare("SELECT full_name FROM users WHERE username = ?");
@@ -21,7 +24,7 @@ $user_result = $stmt->get_result();
 if ($user_result->num_rows === 0) die("User not found!");
 $full_name = $user_result->fetch_assoc()['full_name'];
 
-// ✅ Default to current month if no dates provided
+// Default to current month if dates missing
 if (empty($_GET['from_date']) || empty($_GET['to_date'])) {
     $from_date = date("Y-m-01");
     $to_date   = date("Y-m-t");
@@ -29,21 +32,24 @@ if (empty($_GET['from_date']) || empty($_GET['to_date'])) {
     $from_date = $_GET['from_date'];
     $to_date   = $_GET['to_date'];
 }
-$region_filter = $_GET['region'] ?? 'All';
+$region_filter = isset($_GET['region']) ? $_GET['region'] : 'All';
+$types = ['All','Fuel','Food','Room','Other','Tools','Labour','Accessories','TV','Vehicle'];
+$type_filter = isset($_GET['type']) ? $_GET['type'] : 'All';
 
-// Fetch expenses function (only submitted=1)
+
+// Fetch expenses function
 function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', $region = 'All') {
     if ($table === 'vehicle_expense') {
         $sql = "SELECT ve.id, ve.username,
-                   CONCAT(v.model, ' - ', v.number_plate, ' - ', ve.service, ' - ', ve.description) AS description,
-                   ve.amount, ve.date,
-                   '' as division, '' as company, '' as location, '' as store, '' as region
-            FROM vehicle_expense ve
-            LEFT JOIN vehicle v ON ve.vehicle_id = v.id
-            WHERE ve.username=? AND ve.submitted=1";
+                       CONCAT(IFNULL(v.model,''), ' - ', IFNULL(v.number_plate,''), ' - ', ve.service, IF(ve.description IS NOT NULL, CONCAT(' - ', ve.description), '')) AS description,
+                       ve.amount, ve.date,
+                       '' as division, '' as company, '' as location, '' as store, '' as region
+                FROM vehicle_expense ve
+                LEFT JOIN vehicle v ON ve.vehicle_id = v.id
+                WHERE ve.username=? AND ve.submitted=1";
     } else {
         $sql = "SELECT id, username, description, amount, date, division, company, location, store, region
-                FROM $table 
+                FROM $table
                 WHERE username=? AND submitted=1";
     }
 
@@ -63,23 +69,21 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
         $params[] = $region;
     }
 
-    $sql .= " ORDER BY `date` ASC";
+    $sql .= " ORDER BY `date` DESC";
     $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        die("Prepare failed: " . $conn->error . " | SQL: " . $sql);
-    }
+    if (!$stmt) die("Prepare failed: " . $conn->error);
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
     return $stmt->get_result();
 }
 
-// Pagination setup
+// Pagination
 $limit = 20;
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int) $_GET['page'] : 1;
 if ($page < 1) $page = 1;
 $offset = ($page - 1) * $limit;
 
-// Fetch all expenses
+// Fetch expenses
 $expense_tables = [
     'Fuel' => 'fuel_expense',
     'Food' => 'food_expense',
@@ -97,17 +101,39 @@ foreach ($expense_tables as $type => $table) {
     $expenses_list[$type] = get_expenses($conn, $table, $username, $from_date, $to_date, $region_filter);
 }
 
+// Combine expenses
 $total_amount = 0;
 $all_expenses = [];
+$total_amount = 0;
 foreach ($expenses_list as $type => $result) {
+    if ($type_filter != 'All' && $type != $type_filter) continue; // Skip types not selected
     while ($row = $result->fetch_assoc()) {
         $row['type'] = $type;
         $all_expenses[] = $row;
         $total_amount += $row['amount'];
     }
 }
+$type_totals = [];
+if ($type_filter == 'All') {
+    foreach ($expense_tables as $type => $table) {
+        $type_totals[$type] = 0;
+    }
+    foreach ($all_expenses as $row) {
+        $type_totals[$row['type']] += $row['amount'];
+    }
+}
 
-// Handle advance submission
+// Sort and paginate
+usort($all_expenses, function($a, $b) {
+    return strtotime($a['date']) - strtotime($b['date']);
+});
+
+$total_records = count($all_expenses);
+$paged_expenses = array_slice($all_expenses, $offset, $limit);
+
+// ----------------------
+// Handle Advance Submission
+// ----------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_advance'])) {
     $adv_date = $_POST['adv_date'];
     $adv_amount = $_POST['adv_amount'];
@@ -121,28 +147,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_advance'])) {
     exit();
 }
 
-// ✅ Initialize to prevent undefined warnings
-$total_carry = 0.0;
-$carrydown_tooltip = "";
-$total_adv = 0.0;
-
 // ----------------------
-// Carrydown auto logic
+// Handle Carrydown Submission
 // ----------------------
 $current_month = date("Y-m");
 $prev_month = date("Y-m", strtotime("-1 month"));
 $first_day_prev = date("Y-m-01", strtotime("-1 month"));
 $last_day_prev  = date("Y-m-t", strtotime("-1 month"));
 
-// Check if carrydown exists
+// Check if carrydown exists for current month
 $stmt = $conn->prepare("SELECT id, amount, description FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? LIMIT 1");
 $stmt->bind_param("ss", $username, $current_month);
 $stmt->execute();
 $current_month_carry = $stmt->get_result()->fetch_assoc();
 $carrydown_exists = !empty($current_month_carry);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_carrydown'])) {
+    $cd_amount = floatval($_POST['cd_amount']);
+    $cd_desc = $_POST['cd_desc'];
+
+    if ($carrydown_exists) {
+        // Update existing
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, description=?, updated_at=NOW() WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=?");
+        $stmt->bind_param("dsss", $cd_amount, $cd_desc, $username, $current_month);
+    } else {
+        // Insert new
+        $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
+        $stmt->bind_param("sds", $username, $cd_amount, $cd_desc);
+    }
+    $stmt->execute();
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
+// Auto-insert carrydown if missing
 if (!$carrydown_exists) {
-    // Sum all expenses last month
     $tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
     $total_prev_expenses = 0.0;
     foreach ($tables as $table) {
@@ -150,50 +189,47 @@ if (!$carrydown_exists) {
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
         $stmt->execute();
-        $total_prev_expenses += floatval($stmt->get_result()->fetch_assoc()['amt'] ?? 0);
+        $total_prev_expenses += floatval($stmt->get_result()->fetch_assoc()['amt']);
     }
 
-    // Sum advances last month
     $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
     $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
     $stmt->execute();
-    $total_prev_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv'] ?? 0);
+    $total_prev_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv']);
 
-    // Previous carrydown
     $stmt = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? ORDER BY created_at DESC LIMIT 1");
     $stmt->bind_param("ss", $username, $prev_month);
     $stmt->execute();
-    $prev_carry = floatval($stmt->get_result()->fetch_assoc()['amount'] ?? 0);
+    $prev_carry = floatval($stmt->get_result()->fetch_assoc()['amount']);
 
     $last_month_balance = ($total_prev_adv + $prev_carry) - $total_prev_expenses;
 
-    $carrydown_value = $last_month_balance;
     $carrydown_desc = "Carryforward from " . date("M Y", strtotime($first_day_prev));
-
     $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
-    $stmt->bind_param("sds", $username, $carrydown_value, $carrydown_desc);
+    $stmt->bind_param("sds", $username, $last_month_balance, $carrydown_desc);
     $stmt->execute();
+
+    $carrydown_value = $last_month_balance;
 } else {
-    $carrydown_value = floatval($current_month_carry['amount']);
-    $carrydown_desc = $current_month_carry['description'];
+    $carrydown_value = floatval($current_month_carry['amount']);   // <-- FIXED
+    $carrydown_desc  = $current_month_carry['description'];         // <-- FIXED
 }
 
-// ✅ Apply values
-$total_carry = $carrydown_value ?? 0;
-$carrydown_tooltip = $carrydown_desc ?? "";
+// Assign to total_carry for HTML display
+$total_carry = $carrydown_value;
 
-// ✅ Fetch advances in selected date range
+
+// Fetch advances in selected range
 $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
 $stmt->bind_param("sss", $username, $from_date, $to_date);
 $stmt->execute();
 $total_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv'] ?? 0);
 
-// Invoice logic (unchanged)
+// Invoice handling
 $stmt = $conn->prepare("SELECT invoice_no FROM invoices WHERE username=? AND from_date=? AND to_date=? AND region=?");
 $stmt->bind_param("ssss", $username, $from_date, $to_date, $region_filter);
 $stmt->execute();
 $invoice_result = $stmt->get_result();
-
 if ($invoice_result->num_rows > 0) {
     $invoice_no = str_pad($invoice_result->fetch_assoc()['invoice_no'], 5, "0", STR_PAD_LEFT);
 } else {
@@ -204,11 +240,8 @@ if ($invoice_result->num_rows > 0) {
     $stmt->execute();
     $invoice_no = str_pad($next_invoice, 5, "0", STR_PAD_LEFT);
 }
+$total_carry = $carrydown_value;
 
-// Sort expenses
-usort($all_expenses, fn($a, $b) => strtotime($a['date']) <=> strtotime($b['date']));
-$total_records = count($all_expenses);
-$paged_expenses = array_slice($all_expenses, $offset, $limit);
 ?>
 
 
@@ -229,6 +262,7 @@ $paged_expenses = array_slice($all_expenses, $offset, $limit);
 .table { border: 2px solid black; border-collapse: collapse; }
 th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wrap: break-word; }
 @media print {
+    .total-summary { font-size: 11px; margin-top: 5px; text-align: right; }
     body { -webkit-print-color-adjust: exact; color-adjust: exact; margin: 10mm; font-size: 12px; background: #fff; }
     body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('assets/vision1.png') no-repeat center center; background-size: 50%; opacity: 0.05; z-index: 9999; pointer-events: none; background-color: #aeb6bd; }
     table { width: 100%; border-collapse: collapse; border: 2px solid black; page-break-inside: auto; }
@@ -256,7 +290,15 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     <div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></div>
 </div>
 
-<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3"> <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>"> <div class="form-group"><input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="<?php echo htmlspecialchars($from_date); ?>" required></div> <div class="form-group"><input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="<?php echo htmlspecialchars($to_date); ?>" required></div> <div class="form-group"> <select class="form-select form-select-sm" id="region" name="region"> <?php $regions = ['All','Dammam','Riyadh','Jeddah','Other']; foreach ($regions as $region) { $selected = ($region_filter == $region) ? 'selected' : ''; echo "<option value=\"$region\" $selected>$region</option>"; } ?> </select> </div> <div class="btn-group"> <button class="btn btn-outline-primary btn-sm" type="submit">Search</button> <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">Clear</button> <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button> <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">Export</button> <button class="btn btn-info btn-sm" <?= $carrydown_exists ? 'disabled' : '' ?> onclick="openCarrydownModal()">Add Carrydown</button> <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button> </div> </form>
+<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3"> <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>"> <div class="form-group"><input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="<?php echo htmlspecialchars($from_date); ?>" required></div> <div class="form-group"><input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="<?php echo htmlspecialchars($to_date); ?>" required></div> <div class="form-group"> <select class="form-select form-select-sm" id="region" name="region"> <?php $regions = ['All','Dammam','Riyadh','Jeddah','Other']; foreach ($regions as $region) { $selected = ($region_filter == $region) ? 'selected' : ''; echo "<option value=\"$region\" $selected>$region</option>"; } ?> </select> </div> <div class="btn-group"> <button class="btn btn-outline-primary btn-sm" type="submit">Search</button> <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">Clear</button> <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button> <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">Export</button> <button class="btn btn-info btn-sm" <?php echo $carrydown_exists ? 'disabled' : ''; ?> onclick="openCarrydownModal()">Add Carrydown</button><div class="form-group">
+    <select class="form-select form-select-sm" id="type" name="type">
+        <?php foreach($types as $type): 
+            $selected = ($type_filter == $type) ? 'selected' : ''; ?>
+            <option value="<?= $type ?>" <?= $selected ?>><?= $type ?></option>
+        <?php endforeach; ?>
+    </select>
+</div>
+ <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button> </div> </form>
 
 <div class="print-header d-flex justify-content-between mb-3">
     <div>
@@ -403,6 +445,19 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             </tr>
         </tfoot>
     </table>
+    <?php if($type_filter == 'All'): ?>
+    <div class="total-summary" style="font-size:12px; margin-top:10px; text-align:right;">
+        <strong>Summary by Type:</strong>
+        <?php 
+            $summary_items = [];
+            foreach($type_totals as $type => $amount) {
+                $summary_items[] = "$type: SAR " . number_format($amount, 2);
+            }
+            echo implode(" | ", $summary_items);
+        ?>
+    </div>
+<?php endif; ?>
+
 </div>
 
 <div style="text-align:right; margin-top:10px;">

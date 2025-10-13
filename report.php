@@ -112,6 +112,9 @@ if ($from_date && $to_date) {
 $cd_query->execute();
 $cd_result = $cd_query->get_result();
 $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
+
+
+
 ?>
 
 <!DOCTYPE html>
@@ -173,6 +176,20 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
             <button type="button" onclick="window.print()" class="btn btn-secondary flex-grow-1 flex-md-grow-0">Print</button>
             <button type="button" onclick="window.location.href='dashboard_user.php'" class="btn btn-outline-secondary flex-grow-1 flex-md-grow-0">Back</button>
         </div>
+        <div class="col-12 col-md-3">
+    <label class="form-label">Type</label>
+    <select class="form-select" name="type">
+        <?php
+        $types = ['All','Fuel','Food','Room','Other','Tools','Labour','Accessories','TV','Vehicle'];
+        $selected_type = $_GET['type'] ?? 'All';
+        foreach($types as $type_opt){
+            $sel = ($selected_type == $type_opt) ? 'selected' : '';
+            echo "<option value=\"$type_opt\" $sel>$type_opt</option>";
+        }
+        ?>
+    </select>
+</div>
+
     </form>
 
     <!-- Info -->
@@ -221,10 +238,23 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                         $all_expenses[] = $row;
                     }
                 }
+                // Calculate per-type totals
+$type_totals = [];
+foreach ($all_expenses as $row) {
+    $type = $row['type'];
+    if (!isset($type_totals[$type])) $type_totals[$type] = 0;
+    $type_totals[$type] += $row['amount'];
+}
+$selected_type = $_GET['type'] ?? 'All';
+if($selected_type != 'All'){
+    $all_expenses = array_filter($all_expenses, function($row) use ($selected_type){
+        return $row['type'] == $selected_type;
+    });
+}
 
                 // Sort by date ascending
                 usort($all_expenses, function($a, $b) {
-                    return strtotime($a['date']) <=> strtotime($b['date']);
+                    return strtotime($b['date']) <=> strtotime($a['date']);
                 });
 
                 foreach ($all_expenses as $row) {
@@ -272,6 +302,20 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
             <div class="p-2 border bg-white text-center"><strong>Balance:</strong> SAR <?php echo number_format(($total_adv + $total_carry) - $total_amount,2); ?></div>
         </div>
     </div>
+
+    <?php if(!isset($_GET['type']) || $_GET['type'] == 'All'): ?>
+    <div class="text-end mt-2" style="font-size:12px;">
+        <strong>Type Summary:</strong>
+        <?php
+        $summary_items = [];
+        foreach($type_totals as $type => $amount) {
+            $summary_items[] = "$type: SAR " . number_format($amount, 2);
+        }
+        echo implode(" | ", $summary_items);
+        ?>
+    </div>
+<?php endif; ?>
+
 
 </div>
 

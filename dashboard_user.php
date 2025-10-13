@@ -7,6 +7,10 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
 include 'config.php';
 
 $username = $_SESSION['username'];
+// Define current month date range
+$first_day = date('Y-m-01');
+$last_day  = date('Y-m-t');
+
 
 // Expense tables except vehicle_expense
 $tables = [
@@ -17,18 +21,20 @@ $tables = [
     'tools_expense',
     'labour_expense',
     'accessories_expense',
-    'tv_expense',
-    'vehicle_expense'
+    'tv_expense'
 ];
 
 // Total Expenses
 $total_amount = 0;
 $category_totals = [];
 foreach ($tables as $table) {
-    $sql = "SELECT SUM(amount) AS total FROM $table WHERE username=?";
+    $sql = "SELECT SUM(amount) AS total FROM $table WHERE username=? AND date BETWEEN ? AND ?";
+$stmt = $conn->prepare($sql);
+
+
     $stmt = $conn->prepare($sql);
     if (!$stmt) die("SQL prepare failed for $table: " . $conn->error);
-    $stmt->bind_param("s", $username);
+    $stmt->bind_param("sss", $username, $first_day, $last_day);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $category_totals[$table] = $row['total'] ?? 0;
@@ -36,23 +42,25 @@ foreach ($tables as $table) {
 }
 
 // Vehicle Expenses (separate query)
-$sql_vehicle = "SELECT SUM(ve.amount) AS total_vehicle
-                FROM vehicle_expense ve
-                JOIN vehicle v ON ve.vehicle_id = v.id
-                WHERE v.vehicle_owner = ?";
+$sql_vehicle = "SELECT SUM(amount) AS total FROM vehicle_expense WHERE username=? AND date BETWEEN ? AND ?";
+
 $stmt_vehicle = $conn->prepare($sql_vehicle);
+
+
 if (!$stmt_vehicle) die("SQL prepare failed for vehicle_expense: " . $conn->error);
-$stmt_vehicle->bind_param("s", $username);
+$stmt_vehicle->bind_param("sss", $username, $first_day, $last_day);
 $stmt_vehicle->execute();
 $row_vehicle = $stmt_vehicle->get_result()->fetch_assoc();
-$category_totals['vehicle_expense'] = $row_vehicle['total_vehicle'] ?? 0;
+$category_totals['vehicle_expense'] = $row_vehicle['total'] ?? 0;
 $total_amount += $category_totals['vehicle_expense'];
 
 // Total Advance
-$sql = "SELECT SUM(adv_amt) AS total_adv FROM adv_amt WHERE username=?";
+$sql = "SELECT SUM(adv_amt) AS total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?";
 $stmt = $conn->prepare($sql);
+
+
 if (!$stmt) die("SQL prepare failed for adv_amt: " . $conn->error);
-$stmt->bind_param("s", $username);
+$stmt->bind_param("sss", $username, $first_day, $last_day);
 $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $total_adv = $row['total_adv'] ?? 0;
