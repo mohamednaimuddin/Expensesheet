@@ -69,7 +69,7 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
         $params[] = $region;
     }
 
-    $sql .= " ORDER BY `date` DESC";
+    $sql .= " ORDER BY `date` ASC";
     $stmt = $conn->prepare($sql);
     if (!$stmt) die("Prepare failed: " . $conn->error);
     $stmt->bind_param($types, ...$params);
@@ -150,10 +150,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_advance'])) {
 // ----------------------
 // Handle Carrydown Submission
 // ----------------------
-$current_month = date("Y-m");
-$prev_month = date("Y-m", strtotime("-1 month"));
-$first_day_prev = date("Y-m-01", strtotime("-1 month"));
-$last_day_prev  = date("Y-m-t", strtotime("-1 month"));
+$current_month = date("Y-m", strtotime($from_date));
+$prev_month = date("Y-m", strtotime("$from_date -1 month"));
+$first_day_prev = date("Y-m-01", strtotime("$from_date -1 month"));
+$last_day_prev  = date("Y-m-t", strtotime("$from_date -1 month"));
 
 // Check if carrydown exists for current month
 $stmt = $conn->prepare("SELECT id, amount, description FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? LIMIT 1");

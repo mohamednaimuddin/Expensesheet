@@ -39,8 +39,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>  
       </select>
 
       <label>Region:</label>
@@ -101,8 +99,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>
@@ -159,8 +155,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>
@@ -259,8 +253,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>
@@ -322,7 +314,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
         <option value="Recharge">Recharge</option>
         <option value="Other">Other</option>
       </select>
@@ -385,8 +376,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region</label>
@@ -448,8 +437,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>  
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>

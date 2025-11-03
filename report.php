@@ -42,7 +42,7 @@ function get_expenses($conn, $table, $from_date, $to_date, $region_filter, $user
         $params[] = $region_filter;
     }
 
-    $sql .= " ORDER BY $date_col DESC";
+    $sql .= " ORDER BY $date_col ASC";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
@@ -254,7 +254,7 @@ if($selected_type != 'All'){
 
                 // Sort by date ascending
                 usort($all_expenses, function($a, $b) {
-                    return strtotime($b['date']) <=> strtotime($a['date']);
+                    return strtotime($a['date']) <=> strtotime($b['date']);
                 });
 
                 foreach ($all_expenses as $row) {
