@@ -273,6 +273,11 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     th, td { border: 0.5px solid black; padding: 4px 6px; font-size: 11px; text-align: left; word-wrap: break-word; color: black; }
     button, input, select { display: none !important; }
     .total-summary { display: flex; justify-content: flex-end; text-align: right; margin-top: 20px; }
+    /* Prevent scrollbars from printing */
+    html, body { overflow: visible !important; height: auto !important; }
+    .table-responsive { overflow: visible !important; }
+    /* Hide any webkit scrollbars in print context */
+    .table-responsive::-webkit-scrollbar { display: none !important; }
 }
 /* Modal styling */
 .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
