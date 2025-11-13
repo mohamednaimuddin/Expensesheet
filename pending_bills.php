@@ -144,17 +144,125 @@ body { background: #f8f9fa; }
 .pending { background-color: #fff3cd !important; }
 
 @media print {
-    body, html { height: 100%; margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
-    #filterForm, .action-btn, .print-btn, .back-btn { display: none !important; }
-    .print-section { display: block; page-break-inside: avoid; }
-    .table-responsive { overflow: visible !important; page-break-inside: avoid; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; page-break-inside: auto; }
-    th, td { border: 0.5px solid black; padding: 2px 3px; word-wrap: break-word; white-space: normal; }
-    thead { display: table-header-group; }
-    tfoot { display: table-footer-group; }
-    tr { page-break-inside: avoid; }
-    .report-footer { display: block; margin-top: 10px; page-break-inside: avoid; page-break-after: auto; width: 100%; }
-    @page { size: A4 portrait; margin: 8mm; }
+    /* Reset and optimize page layout */
+    * { box-sizing: border-box; }
+    body, html { 
+        height: auto !important; 
+        margin: 0 !important; 
+        padding: 0 !important; 
+        background: #fff !important; 
+        -webkit-print-color-adjust: exact; 
+        font-size: 11px !important;
+        line-height: 1.2 !important;
+    }
+    
+    /* Hide non-essential elements */
+    #filterForm, .action-btn, .print-btn, .back-btn, .btn, button { display: none !important; }
+    .container { margin: 0 !important; padding: 5mm !important; max-width: 100% !important; }
+    .my-4, .mb-4, .mb-3, .mb-2 { margin: 0 !important; }
+    
+    /* Optimize header */
+    .print-header { margin-bottom: 8px !important; page-break-inside: avoid; text-align: center; }
+    .print-header img { max-height: 50px !important; }
+    .print-header h2 { margin: 5px 0 !important; font-size: 18px !important; font-weight: bold; }
+    
+    /* Optimize info section */
+    .d-flex.justify-content-between { 
+        margin-bottom: 8px !important; 
+        font-size: 10px !important;
+        page-break-inside: avoid;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 5px;
+    }
+    
+    /* Optimize table layout */
+    .print-section { 
+        display: block !important; 
+        page-break-inside: auto; 
+        margin: 0 !important; 
+        padding: 0 !important;
+    }
+    .table-responsive { 
+        overflow: visible !important; 
+        page-break-inside: auto; 
+        margin: 0 !important;
+    }
+    
+    /* Table styling - A4 optimized */
+    table { 
+        width: 100% !important; 
+        border-collapse: collapse !important; 
+        table-layout: fixed !important; 
+        font-size: 9px !important; 
+        page-break-inside: auto !important;
+        margin: 0 !important;
+    }
+    
+    th, td { 
+        border: 0.5px solid #000 !important; 
+        padding: 3px 4px !important; 
+        word-wrap: break-word !important; 
+        white-space: normal !important;
+        vertical-align: top !important;
+        overflow: hidden !important;
+    }
+    
+    /* Table header */
+    thead { display: table-header-group !important; }
+    thead th { 
+        background-color: #f0f0f0 !important; 
+        font-weight: bold !important;
+        font-size: 9px !important;
+        text-align: center !important;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+    
+    /* Column specific widths for A4 */
+    th:nth-child(1), td:nth-child(1) { width: 6% !important; } /* SI No */
+    th:nth-child(2), td:nth-child(2) { width: 9% !important; } /* Date */
+    th:nth-child(3), td:nth-child(3) { width: 8% !important; } /* Type */
+    th:nth-child(4), td:nth-child(4) { width: 11% !important; } /* Division */
+    th:nth-child(5), td:nth-child(5) { width: 13% !important; } /* Company */
+    th:nth-child(6), td:nth-child(6) { width: 11% !important; } /* Location */
+    th:nth-child(7), td:nth-child(7) { width: 10% !important; } /* Store */
+    th:nth-child(8), td:nth-child(8) { width: 22% !important; } /* Description */
+    th:nth-child(9), td:nth-child(9) { width: 8% !important; } /* Amount */
+    th:nth-child(10), td:nth-child(10) { width: 6% !important; } /* Remark */
+    
+    /* Table footer */
+    tfoot { display: table-footer-group !important; }
+    tfoot td { 
+        font-weight: bold !important; 
+        background-color: #f8f8f8 !important;
+        font-size: 10px !important;
+    }
+    
+    /* Row optimization */
+    tr { page-break-inside: avoid !important; }
+    
+    /* Footer optimization */
+    .report-footer { 
+        display: block !important; 
+        margin-top: 15px !important; 
+        page-break-inside: avoid !important; 
+        font-size: 10px !important;
+        width: 100% !important;
+        border-top: 1px solid #ccc;
+        padding-top: 8px;
+    }
+    
+    /* Page settings for A4 */
+    @page { 
+        size: A4 portrait !important; 
+        margin: 10mm 8mm !important; 
+    }
+    
+    /* Remove any extra spacing */
+    .pending { background-color: #fff3cd !important; }
+    
+    /* Ensure no horizontal overflow */
+    .table-responsive { max-width: 100% !important; }
 }
 </style>
 
@@ -193,6 +301,30 @@ $(document).ready(function(){
             }
         });
     }
+
+    // Print optimization for A4
+    window.addEventListener('beforeprint', function() {
+        // Ensure proper sizing for A4
+        document.body.style.fontSize = '11px';
+        document.body.style.lineHeight = '1.2';
+        
+        // Adjust table if needed
+        const table = document.querySelector('table');
+        if (table) {
+            table.style.fontSize = '9px';
+        }
+    });
+    
+    window.addEventListener('afterprint', function() {
+        // Reset styles after printing
+        document.body.style.fontSize = '';
+        document.body.style.lineHeight = '';
+        
+        const table = document.querySelector('table');
+        if (table) {
+            table.style.fontSize = '';
+        }
+    });
 });
 </script>
 </head>
@@ -200,9 +332,9 @@ $(document).ready(function(){
 
 <div class="container my-4">
 
-    <div class="text-center mb-4 print-header">
+    <div class="text-center mb-2 print-header">
         <img src="assets/visionlogo.jpg" alt="Company Logo" style="max-height:80px;">
-        <h2>No Bill Payment Slip</h2>
+        <h2 class="mb-1">No Bill Payment Slip</h2>
     </div>
 
     <form method="get" id="filterForm" class="row g-2 mb-3 align-items-end">
@@ -241,7 +373,7 @@ $(document).ready(function(){
         </div>
     </form>
 
-    <div class="mb-3 d-flex justify-content-between">
+    <div class="mb-2 d-flex justify-content-between">
         <div><strong>Month:</strong> <?= $month_year_filter ? date('F, Y', strtotime($month_year_filter . '-01')) : 'All Months' ?></div>
         <div><strong>User:</strong> <?= $username_filter ? htmlspecialchars($username_filter) : 'All Users' ?></div>
         <div><strong>Region:</strong> <?= $region_filter ?></div>
@@ -249,19 +381,19 @@ $(document).ready(function(){
 
     <div class="print-section">
         <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle" style="width:100%;">
-                <thead class="table-dark">
+            <table class="table table-bordered table-hover align-middle" style="width:100%; margin-bottom: 8px;">
+                <thead class="table-dark" style="color: black;">
                     <tr>
-                        <th>SI No</th>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Division</th>
-                        <th>Company</th>
-                        <th>Location</th>
-                        <th>Store</th>
-                        <th>Description</th>
-                        <th>Amount</th>
-                        <th>Remark</th>
+                        <th style="width:6%;">SI No</th>
+                        <th style="width:9%;">Date</th>
+                        <th style="width:8%;">Type</th>
+                        <th style="width:11%;">Division</th>
+                        <th style="width:13%;">Company</th>
+                        <th style="width:11%;">Location</th>
+                        <th style="width:10%;">Store</th>
+                        <th style="width:22%;">Description</th>
+                        <th style="width:8%;">Amount</th>
+                        <th style="width:6%;">Remark</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -303,11 +435,11 @@ $(document).ready(function(){
             </table>
         </div>
 
-        <div class="report-footer d-print-block mt-3">
-            <div style="display:flex; justify-content:space-between;">
-                <div style="width:33%; text-align:left;">Prepared By:</div>
-                <div style="width:33%; text-align:center;">Verified By:</div>
-                <div style="width:33%; text-align:right;">Approved By:</div>
+        <div class="report-footer d-print-block mt-2">
+            <div style="display:flex; justify-content:space-between; font-size: 10px;">
+                <div style="width:33%; text-align:left;">Prepared By: _______________</div>
+                <div style="width:33%; text-align:center;">Verified By: _______________</div>
+                <div style="width:33%; text-align:right;">Approved By: _______________</div>
             </div>
         </div>
     </div>

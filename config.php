@@ -1,7 +1,7 @@
 <?php 
 $host = "localhost";    // your DB host
 $user = "root";         // your DB username
-$pass = "";   // your DB password
+$pass = "Vas@123";   // your DB password
 $db   = "vas_angles";
 
 $conn = new mysqli($host, $user, $pass, $db);
