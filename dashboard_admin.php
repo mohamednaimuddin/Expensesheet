@@ -53,9 +53,9 @@ if($admin_company_result && $admin_company_result->num_rows > 0){
 
 // Fetch all non-admin users of the same company
 $users_result = $conn->query("SELECT username, full_name, role, company_id 
-                              FROM users 
-                              WHERE role='user' AND company_id='$admin_company_id' 
-                              ORDER BY full_name ASC");
+                             FROM users 
+                             WHERE role='user' AND company_id='$admin_company_id' 
+                             ORDER BY full_name ASC");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,191 +64,123 @@ $users_result = $conn->query("SELECT username, full_name, role, company_id
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Dashboard | VisionAngles</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets\vision.ico">
-<style>
-body {
-    background-color: #f5f6fa;
-    font-family: 'Arial', sans-serif;
-    position: relative;
-    min-height: 100vh;
-}
-
-/* Background logo */
-body::before {
-    content: "";
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    width: 500px;   /* adjust size */
-    height: 500px;
-    background: url('assets/vision1.png') no-repeat center center;
-    background-size: contain;
-    opacity: 0.3;   /* faint effect */
-    transform: translate(-50%, -50%);
-    z-index: 0;      /* behind everything */
-}
-
-/* Put content above the background */
-.container, .navbar, footer {
-    position: relative;
-    z-index: 1;
-}
-/* Navbar */
-.navbar {
-    background: linear-gradient(90deg, #4f46e5, #ec4899); /* Blue to pink gradient */
-}
-.navbar-brand span {
-    color: #fff;
-    font-weight: bold;
-    font-size: 1.2rem;
-}
-
-/* Buttons */
-.btn-success {
-    background-color: #10b981;
-    border-color: #10b981;
-}
-.btn-success:hover {
-    background-color: #059669;
-    border-color: #059669;
-}
-.btn-danger {
-    background-color: #ef4444;
-    border-color: #ef4444;
-}
-.btn-danger:hover {
-    background-color: #b91c1c;
-    border-color: #b91c1c;
-}
-
-/* Summary Cards */
-.card-summary {
-    background: linear-gradient(135deg, #4f46e5, #ec4899);
-    color: white;
-    transition: transform 0.3s;
-}
-.card-summary:hover {
-    transform: scale(1.05);
-}
-
-/* User Cards */
-.card-user {
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-.card-user:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
-
-/* Footer */
-footer {
-    background-color: #ecf0f1;
-    color: #333;
-}
-</style>
+<link rel="stylesheet" href="assets/dashboard_admin.css">
 </head>
 <body>
 
-<!-- Navbar -->
 <nav class="navbar navbar-expand-lg">
   <div class="container">
     <a class="navbar-brand d-flex align-items-center" href="#">
       <img src="assets/visionangles.png" alt="Logo" style="height:40px; margin-right:10px;">
       <span>Vision Angles Security EST.</span>
     </a>
-    <div class="d-flex ms-auto align-items-center">
-      <span class="text-white me-3">👤 <?php echo ucfirst($username); ?></span>
-      <a href="add_user.php" class="btn btn-success me-2">➕ Add User</a>
-      <a href="logout.php" class="btn btn-danger">Logout</a>
+    
+    <!-- Mobile hamburger button -->
+    <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <i class="bi bi-list text-white" style="font-size: 1.5rem;"></i>
+    </button>
+    
+    <!-- Collapsible navigation content -->
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <div class="navbar-nav ms-auto d-flex align-items-center">
+        <span class="navbar-text text-white me-3">👤 <?php echo ucfirst($username); ?></span>
+        <a href="add_user.php" class="btn btn-add-user me-2">➕ Add User</a>
+        <a href="logout.php" class="btn btn-logout">Logout</a>
+      </div>
     </div>
   </div>
 </nav>
 
-<div class="container my-4">
-    <div class="text-center mb-4">
-        <h1>Admin</h1>
-        <p class="text-muted">Manage users and admins from here.</p>
+<div class="container my-3">
+    <div class="hero text-center mb-4">
+        <h1>Admin Dashboard</h1>
+        <p class="text-white-50">Comprehensive management and oversight for Vision Angles Security.</p>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="row g-4 mb-4">
-        <div class="col-md-4">
-            <div class="card card-summary text-center shadow-sm h-100">
-                <div class="card-body">
+    <h2 class="section-title mb-3">Summary</h2>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-4 col-md-6 col-sm-12 mb-3">
+            <div class="card card-summary shadow-lg h-100 summary-users">
+                <div class="card-body text-center">
                     <h5 class="card-title">👥 Total Users</h5>
-                    <p class="card-text"><?php echo $total_users; ?> users registered.</p>
+                    <p class="card-text amount-lg"><?php echo $total_users; ?></p>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card card-summary text-center shadow-sm h-100">
-                <div class="card-body">
+        <div class="col-lg-4 col-md-6 col-sm-12 mb-3">
+            <div class="card card-summary shadow-lg h-100 summary-admins">
+                <div class="card-body text-center">
                     <h5 class="card-title">🛡️ Total Admins</h5>
-                    <p class="card-text"><?php echo $total_admins; ?> admins registered.</p>
+                    <p class="card-text amount-lg"><?php echo $total_admins; ?></p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card card-summary text-center shadow-sm h-100" 
+        <div class="col-lg-4 col-md-6 col-sm-12 mb-3">
+            <div class="card card-summary shadow-lg h-100 summary-pending" 
+                 onclick="window.location.href='pending_bills.php'" style="cursor:pointer;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🕒 Pending Bills</h5>
+                    <p class="card-text amount-lg"><?= $pending_bill_count ?></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-3">
+            <div class="card card-utility h-100 shadow-sm" 
                  onclick="window.location.href='tv_report.php'" style="cursor:pointer;">
-                <div class="card-body">
+                <div class="card-body text-center">
                     <h5 class="card-title">📺 TV Report</h5>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card card-summary text-center shadow-sm h-100" 
+        <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-3">
+            <div class="card card-utility h-100 shadow-sm" 
                  onclick="window.location.href='vehicle.php'" style="cursor:pointer;">
-                <div class="card-body">
+                <div class="card-body text-center">
                     <h5 class="card-title">🚗 Vehicle</h5>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card card-summary text-center shadow-sm h-100" onclick="window.location.href='pending_bills.php'" style="cursor:pointer;">
-                <div class="card-body">
-                    <h5 class="card-title">🕒 Pending Bills</h5>
-                    <p class="card-text"><?= $pending_bill_count ?> pending without a bill.
-                </p>
+        <div class="col-lg-6 col-md-12 col-sm-12 col-12 mb-3">
+            <div class="card card-utility h-100 shadow-sm utility-all-expenses" 
+                 onclick="window.location.href='all_user_expenses.php'" 
+                 style="cursor:pointer;">
+                <div class="card-body text-center">
+                    <h5 class="card-title">💰 All User Expenses</h5>
+                    <p class="card-text-sm">View expenses of all users combined.</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-    <!-- Users Cards -->
-    <h2 class="mb-3">All Users</h2>
+    <h2 class="section-title mb-3">Users of Company ID: <?php echo $admin_company_id; ?></h2>
     <div class="row g-3">
         <?php if($users_result && $users_result->num_rows > 0): ?>
             <?php while($user = $users_result->fetch_assoc()): ?>
-                <div class="col-md-4">
+                <div class="col-lg-4 col-md-6 col-sm-6 col-12 mb-3">
                     <div class="card card-user h-100 shadow-sm" onclick="window.location.href='user_report.php?username=<?php echo $user['username']; ?>'" style="cursor:pointer;">
                         <div class="card-body text-center">
-                            <h5 class="card-title"><?php echo ucfirst($user['full_name']); ?></h5>
-                            <p class="card-text">Username: <?php echo $user['username']; ?></p>
+                            <h5 class="card-title user-name"><?php echo ucfirst($user['full_name']); ?></h5>
+                            <p class="card-text user-username">@<?php echo $user['username']; ?></p>
+                            <p class="card-text user-company">Company ID: <?php echo $user['company_id']; ?></p>
                         </div>
                     </div>
                 </div>
             <?php endwhile; ?>
         <?php else: ?>
-            <p>No users found.</p>
+            <div class="col-12">
+                <p class="text-center">No users found for this company.</p>
+            </div>
         <?php endif; ?>
-        <div class="col-md-4">
-    <div class="card card-user h-100 shadow-sm bg-warning text-dark" 
-         onclick="window.location.href='all_user_expenses.php'" 
-         style="cursor:pointer;">
-        <div class="card-body text-center">
-            <h5 class="card-title">💰 All User Expenses</h5>
-            <p class="card-text">View expenses of all users combined.</p>
-        </div>
-    </div>
-</div>
-
     </div>
 </div>
 
 
 
-<footer class="text-center py-3 mt-5">
+<footer class="text-center py-4 mt-5">
     <p class="mb-0">© 2025 VisionAngles | Admin Dashboard</p>
 </footer>
 
