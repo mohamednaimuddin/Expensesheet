@@ -20,7 +20,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($row['role'] == 'admin') {
                 header("Location: dashboard_admin.php");
             } else {
-                header("Location: dashboard_user.php");
+                    // Check for pending expenses from previous month if it's the next month
+                    
+                    $current_month = date('Y-m');
+                    $prev_month = date('Y-m', strtotime('-1 month'));
+                    $redirect_to_pending = false;
+                    if ($current_month === date('Y-m', strtotime($prev_month . ' +1 month'))) {
+                        $expense_tables = [
+                            'fuel_expense', 'food_expense', 'room_expense', 'other_expense',
+                            'tools_expense', 'labour_expense', 'accessories_expense', 'tv_expense', 'vehicle_expense'
+                        ];
+                        foreach ($expense_tables as $table) {
+                            $date_col = ($table === 'vehicle_expense') ? 'date' : 'date';
+                            $sql_exp = "SELECT id FROM $table WHERE username=? AND $date_col LIKE ? AND (submitted=0 OR submitted IS NULL) LIMIT 1";
+                            $stmt_exp = $conn->prepare($sql_exp);
+                            $like_month = $prev_month . '%';
+                            $stmt_exp->bind_param('ss', $username, $like_month);
+                            $stmt_exp->execute();
+                            $result_exp = $stmt_exp->get_result();
+                            if ($result_exp->fetch_assoc()) {
+                                $redirect_to_pending = true;
+                                break;
+                            }
+                        }
+                    }
+                    if ($redirect_to_pending) {
+                        header("Location: report.php");
+                    } else {
+                        header("Location: dashboard_user.php");
+                    }
             }
             exit();
         } else {

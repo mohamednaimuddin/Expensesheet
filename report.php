@@ -10,6 +10,62 @@ include 'config.php';
 $username = $_SESSION['username'];
 $full_name = $_SESSION['full_name'] ?? $username;
 
+// Restrict normal user if previous month's expenses are pending on 1st day
+// Restrict normal user if previous month's expenses are pending during next month
+$today = date('Y-m-d');
+$current_month = date('Y-m');
+$prev_month = date('Y-m', strtotime('-1 month'));
+$pending_expenses = [];
+// If today is in the month after previous month
+if ($current_month === date('Y-m', strtotime($prev_month . ' +1 month'))) {
+    $expense_tables = [
+        'fuel_expense', 'food_expense', 'room_expense', 'other_expense',
+        'tools_expense', 'labour_expense', 'accessories_expense', 'tv_expense', 'vehicle_expense'
+    ];
+    foreach ($expense_tables as $table) {
+        $date_col = ($table === 'vehicle_expense') ? 'date' : 'date';
+        $sql = "SELECT * FROM $table WHERE username=? AND $date_col LIKE ? AND (submitted=0 OR submitted IS NULL)";
+        $stmt = $conn->prepare($sql);
+        $like_month = $prev_month . '%';
+        $stmt->bind_param('ss', $username, $like_month);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $row['table'] = $table;
+            $pending_expenses[] = $row;
+        }
+    }
+    if (count($pending_expenses) > 0) {
+        // Set session flag to indicate restriction
+        $_SESSION['pending_checked'] = true;
+        // Show pending list and restrict app usage
+        echo '<!DOCTYPE html><html><head><title>Pending Expenses</title>';
+        echo '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">';
+        echo '</head><body class="bg-light"><div class="container my-5">';
+        echo '<div class="alert alert-danger"><strong>Access Restricted:</strong> You have pending expenses from last month. Please submit them before using the app.</div>';
+        echo '<h4>Pending Expenses (Previous Month)</h4>';
+        echo '<table class="table table-bordered table-striped"><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Action</th></tr></thead><tbody>';
+        foreach ($pending_expenses as $row) {
+            $type = ucfirst(str_replace('_expense','',$row['table']));
+            $desc = $row['description'] ?? ($row['service'] ?? '');
+            $edit_url = "edit_expense1.php?id={$row['id']}&table={$row['table']}";
+            $submit_url = "submit_expense.php?id={$row['id']}&table={$row['table']}";
+            $delete_url = "delete_expense1.php?id={$row['id']}&table={$row['table']}";
+            echo "<tr><td>{$row['date']}</td><td>{$type}</td><td>{$desc}</td><td>{$row['amount']}</td>";
+            echo "<td><a href='$edit_url' class='btn btn-sm btn-warning'>Edit</a> <a href='$submit_url' class='btn btn-sm btn-success'>Submit</a> <a href='$delete_url' class='btn btn-sm btn-danger' onclick=\"return confirm('Are you sure you want to delete this expense?');\">Delete</a></td></tr>";
+        }
+        echo '</tbody></table>';
+        echo '<div class="mt-3"><a href="logout.php" class="btn btn-secondary">Logout</a></div>';
+        echo '</div></body></html>';
+        exit();
+    } else if (!empty($_SESSION['pending_checked'])) {
+        // If previously restricted and now no pending, redirect to dashboard
+        unset($_SESSION['pending_checked']);
+        header('Location: dashboard_user.php');
+        exit();
+    }
+}
+
 // Default to current month if no filters applied
 if (!isset($_GET['from_date']) || !isset($_GET['to_date'])) {
     $from_date = date('Y-m-01'); // First day of current month
