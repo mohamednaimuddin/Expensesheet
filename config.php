@@ -1,8 +1,8 @@
 <?php 
-$host = "192.96.210.62";
-$user = "admin";         // your DB username
-$pass = "NVR@sup2030";   // your DB password
-$db   = "visionangles";
+$host = "localhost";
+$user = "root";         // your DB username
+$pass = "";   // your DB password
+$db   = "vas_angles";
 
 $conn = new mysqli($host, $user, $pass, $db);
 
