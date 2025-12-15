@@ -242,8 +242,8 @@ if ($result->num_rows > 0) {
     <h2>Add Labour Expense</h2>
     <form action="add_labour_expense.php" method="POST">
       
-    <label>Date:</label>
-    <input type="text" name="date" id="labourDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
+  <label>Date:</label>
+  <input type="date" name="date" id="labourDate" class="datemandatory" required>
 
 
       <label>Division:</label>
