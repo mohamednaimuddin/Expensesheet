@@ -2,7 +2,7 @@
 $host = "localhost";
 $user = "root";         // your DB username
 $pass = "";   // your DB password
-$db   = "vas_angles";
+$db   = "visionangles";
 
 $conn = new mysqli($host, $user, $pass, $db);
 
