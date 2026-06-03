@@ -483,7 +483,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
         Clear
     </button>
     <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button>
-    <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">
+    <button type="button" class="btn btn-outline-success btn-sm" onclick="startExport('export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>&type=<?php echo urlencode($type_filter); ?>')">
         Export
     </button>
     <!-- <button class="btn btn-info btn-sm" <?php echo $carrydown_exists ? 'disabled' : ''; ?> onclick="openCarrydownModal()">
@@ -861,6 +861,18 @@ function confirmInvoicePrint(){
         });
     } else window.print();
 }
+
+let exportInProgress = false;
+function startExport(url) {
+    exportInProgress = true;
+    document.getElementById('pageLoader').classList.add('hidden');
+    window.location.href = url;
+
+    setTimeout(function() {
+        exportInProgress = false;
+        document.getElementById('pageLoader').classList.add('hidden');
+    }, 2000);
+}
 function openCarrydownModal() { document.getElementById("carrydownModal").style.display = "block"; }
 function closeCarrydownModal() { document.getElementById("carrydownModal").style.display = "none"; }
 
@@ -1046,6 +1058,7 @@ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return ne
 
 // Show loader before page unload (navigation)
 window.addEventListener('beforeunload', function() {
+    if (exportInProgress) return;
     document.getElementById('pageLoader').classList.remove('hidden');
     document.querySelector('#pageLoader .loader-text').textContent = 'Loading...';
 });
