@@ -60,11 +60,11 @@ usort($all_tv_expenses, function($a,$b){ return strtotime($a['date']) <=> strtot
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TV Expense Report | VisionAngles</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="assets/vendor/flatpickr/flatpickr.min.css">
 <link href="assets/user_report.css" rel="stylesheet">
-<link rel="icon" type="image/png" href="assets\vision.ico">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"> 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="icon" type="image/png" href="assets/vision.ico">
+<link href="assets/vendor/bootstrap-5.0.2/css/bootstrap.min.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 <style>
 .table { border: 2px solid black; border-collapse: collapse; }
 th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; font-size: 11px; text-align:left; }
@@ -108,26 +108,45 @@ th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; fon
     <h2>TV Expense Report</h2>
 </div>
 
-<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <div class="form-group">
-        <input type="month" class="form-control form-control-sm" name="month" value="<?= htmlspecialchars($month_filter) ?>">
+<form method="get" class="report-toolbar mb-3">
+    <div class="toolbar-filter-group">
+        <div class="toolbar-field">
+            <label for="month" class="form-label mb-1 small">Month</label>
+            <input type="month" class="form-control form-control-sm" id="month" name="month" value="<?= htmlspecialchars($month_filter) ?>">
+        </div>
+        <div class="toolbar-field">
+            <label for="region" class="form-label mb-1 small">Region</label>
+            <select class="form-select form-select-sm" id="region" name="region">
+                <?php
+                $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
+                foreach ($regions as $region) {
+                    $selected = ($region_filter == $region) ? 'selected' : '';
+                    echo "<option value=\"$region\" $selected>$region</option>";
+                }
+                ?>
+            </select>
+        </div>
+        <div class="toolbar-search-actions">
+            <button class="btn btn-outline-primary btn-sm" type="submit">
+                <i class="bi bi-search"></i>
+                Search
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='tv_report.php'">
+                <i class="bi bi-x-circle"></i>
+                Clear
+            </button>
+        </div>
     </div>
-    <div class="form-group">
-        <select class="form-select form-select-sm" name="region">
-            <?php 
-            $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
-            foreach ($regions as $region) {
-                $selected = ($region_filter == $region) ? 'selected' : '';
-                echo "<option value=\"$region\" $selected>$region</option>";
-            }
-            ?>
-        </select>
-    </div>
-    <div class="btn-group">
-        <button class="btn btn-outline-primary btn-sm" type="submit">Search</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='tv_report.php'">Clear</button>
-        <button class="btn btn-outline-success btn-sm" type="button" onclick="window.print()">Print</button>
-        <button type="button" class="btn btn-outline-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">Back</button>
+
+    <div class="toolbar-actions">
+        <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">
+            <i class="bi bi-arrow-left"></i>
+            Back
+        </button>
+        <button class="btn btn-outline-success btn-sm" type="button" onclick="window.print()">
+            <i class="bi bi-printer"></i>
+            Print
+        </button>
     </div>
 </form>
 
