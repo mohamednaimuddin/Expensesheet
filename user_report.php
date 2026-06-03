@@ -411,12 +411,12 @@ $total_carry = $carrydown_value;
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>User Expense Report | VisionAngles</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="assets/vendor/flatpickr/flatpickr.min.css">
 <link href="assets/user_report.css" rel="stylesheet">
 <link href="assets/loader.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/vision.ico">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"> 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap-5.0.2/css/bootstrap.min.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 <style>
 .total-spend { background-color: #f2f2f2; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; }
 /* Table general styling */
@@ -486,9 +486,9 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">
         Export
     </button>
-    <button class="btn btn-info btn-sm" <?php echo $carrydown_exists ? 'disabled' : ''; ?> onclick="openCarrydownModal()">
+    <!-- <button class="btn btn-info btn-sm" <?php echo $carrydown_exists ? 'disabled' : ''; ?> onclick="openCarrydownModal()">
         Add Carrydown
-    </button>
+    </button> -->
     <div class="form-group">
         <select class="form-select form-select-sm" id="type" name="type">
             <?php foreach($types as $type): 
@@ -843,6 +843,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
   </div>
 </div>
 
+<script src="assets/vendor/bootstrap-5.0.2/js/bootstrap.bundle.min.js"></script>
 <script>
 function confirmInvoicePrint(){
     if(confirm("Do you want a NEW invoice number?")){
@@ -1049,6 +1050,5 @@ window.addEventListener('beforeunload', function() {
     document.querySelector('#pageLoader .loader-text').textContent = 'Loading...';
 });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
