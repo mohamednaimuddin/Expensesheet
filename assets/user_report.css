@@ -91,6 +91,74 @@ body {
     min-width: 150px;
 }
 
+.report-toolbar {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    background: #fff;
+    border: 1px solid #dde3ea;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.05);
+}
+
+.toolbar-filter-group,
+.toolbar-actions,
+.toolbar-search-actions {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.toolbar-filter-group {
+    order: 2;
+    justify-content: flex-start;
+    margin-left: auto;
+}
+
+.toolbar-actions {
+    order: 1;
+    justify-content: flex-start;
+    margin-left: 0;
+}
+
+.toolbar-field {
+    min-width: 150px;
+}
+
+.toolbar-field label {
+    color: #495057;
+    font-weight: 600;
+}
+
+.toolbar-field .form-control,
+.toolbar-field .form-select {
+    min-height: 32px;
+}
+
+.toolbar-actions .btn,
+.toolbar-search-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+    white-space: nowrap;
+}
+
+.toolbar-search-actions {
+    align-self: end;
+}
+
+.toolbar-divider {
+    align-self: stretch;
+    width: 1px;
+    min-height: 32px;
+    background: #d6dce3;
+    margin: 0 2px;
+}
+
 /* ============================
    Table Styles
 ============================ */
@@ -236,6 +304,28 @@ tr:nth-child(even) td {
         flex-direction: column;
         width: 100%;
     }
+    .report-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .toolbar-filter-group,
+    .toolbar-actions,
+    .toolbar-search-actions {
+        width: 100%;
+        margin-left: 0;
+        order: initial;
+    }
+    .toolbar-field {
+        flex: 1 1 150px;
+    }
+    .toolbar-actions .btn,
+    .toolbar-search-actions .btn {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+    .toolbar-divider {
+        display: none;
+    }
 }
 
 /* ============================
@@ -245,6 +335,7 @@ tr:nth-child(even) td {
     /* Hide filters, buttons, modals, and non-essential elements */
     .filters-container,
     .filter_form,
+    .report-toolbar,
     .action-btns,
     .modal,
     button,

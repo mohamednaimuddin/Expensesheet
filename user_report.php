@@ -464,40 +464,63 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     <div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></div>
 </div>
 
-<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+<form method="get" class="report-toolbar mb-3">
     <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>">
-    
-    <div class="form-group">
-        <label for="month" class="form-label mb-1 small">Select Month</label>
-        <input type="month" class="form-control form-control-sm" id="month" name="month" 
-               value="<?php echo htmlspecialchars($selected_month); ?>" required>
+
+    <div class="toolbar-filter-group">
+        <div class="toolbar-field">
+            <label for="month" class="form-label mb-1 small">Month</label>
+            <input type="month" class="form-control form-control-sm" id="month" name="month"
+                   value="<?php echo htmlspecialchars($selected_month); ?>" required>
+        </div>
+        <div class="toolbar-field">
+            <label for="region" class="form-label mb-1 small">Region</label>
+            <select class="form-select form-select-sm" id="region" name="region">
+                <?php
+                $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
+                foreach ($regions as $region) {
+                    $selected = ($region_filter == $region) ? 'selected' : '';
+                    echo "<option value=\"$region\" $selected>$region</option>";
+                }
+                ?>
+            </select>
+        </div>
+        <div class="toolbar-field">
+            <label for="type" class="form-label mb-1 small">Expense Type</label>
+            <select class="form-select form-select-sm" id="type" name="type">
+                <?php foreach($types as $type):
+                    $selected = ($type_filter == $type) ? 'selected' : ''; ?>
+                    <option value="<?= $type ?>" <?= $selected ?>><?= $type ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="toolbar-search-actions">
+            <button class="btn btn-outline-primary btn-sm" type="submit">
+                <i class="bi bi-search"></i>
+                Search
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">
+                <i class="bi bi-x-circle"></i>
+                Clear
+            </button>
+        </div>
     </div>
-    <div class="form-group">
-    <label for="region" class="form-label mb-1 small">Region</label>
-    <select class="form-select form-select-sm" id="region" name="region"> <?php $regions = ['All','Dammam','Riyadh','Jeddah','Other']; foreach ($regions as $region) { $selected = ($region_filter == $region) ? 'selected' : ''; echo "<option value=\"$region\" $selected>$region</option>"; } ?></select></div> 
-    <div class="btn-group align-self-end">
-        <button class="btn btn-outline-primary btn-sm" type="submit">
-            Search
+
+    <div class="toolbar-actions">
+        <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">
+            <i class="bi bi-arrow-left"></i>
+            Back
         </button>
-    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">
-        Clear
-    </button>
-    <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button>
-    <button type="button" class="btn btn-outline-success btn-sm" onclick="startExport('export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>&type=<?php echo urlencode($type_filter); ?>')">
-        Export
-    </button>
-    <!-- <button class="btn btn-info btn-sm" <?php echo $carrydown_exists ? 'disabled' : ''; ?> onclick="openCarrydownModal()">
-        Add Carrydown
-    </button> -->
-    <div class="form-group">
-        <select class="form-select form-select-sm" id="type" name="type">
-            <?php foreach($types as $type): 
-                $selected = ($type_filter == $type) ? 'selected' : ''; ?>
-                <option value="<?= $type ?>" <?= $selected ?>><?= $type ?></option>
-            <?php endforeach; ?>
-        </select>
+        <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">
+            <i class="bi bi-printer"></i>
+            Print
+        </button>
+        <button type="button" class="btn btn-outline-success btn-sm" onclick="startExport('export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>&type=<?php echo urlencode($type_filter); ?>')">
+            <i class="bi bi-file-earmark-excel"></i>
+            Export
+        </button>
     </div>
- <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">Back</button> </div> </form>
+</form>
 
 <div class="print-header d-flex justify-content-between mb-3">
     <div>
