@@ -386,14 +386,14 @@ $stmt->execute();
 $total_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv'] ?? 0);
 
 // Invoice handling
-$stmt = $conn->prepare("SELECT invoice_no FROM invoices WHERE username=? AND from_date=? AND to_date=? AND region=?");
+$stmt = $conn->prepare("SELECT invoice_no FROM invoices WHERE username=? AND from_date=? AND to_date=? AND region=? ORDER BY CAST(invoice_no AS UNSIGNED) DESC LIMIT 1");
 $stmt->bind_param("ssss", $username, $from_date, $to_date, $region_filter);
 $stmt->execute();
 $invoice_result = $stmt->get_result();
 if ($invoice_result->num_rows > 0) {
     $invoice_no = str_pad($invoice_result->fetch_assoc()['invoice_no'], 5, "0", STR_PAD_LEFT);
 } else {
-    $max_inv = $conn->query("SELECT MAX(invoice_no) as max_inv FROM invoices")->fetch_assoc()['max_inv'];
+    $max_inv = $conn->query("SELECT MAX(CAST(invoice_no AS UNSIGNED)) as max_inv FROM invoices")->fetch_assoc()['max_inv'];
     $next_invoice = $max_inv ? $max_inv + 1 : 1;
     $stmt = $conn->prepare("INSERT INTO invoices (username, from_date, to_date, region, invoice_no) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("ssssi", $username, $from_date, $to_date, $region_filter, $next_invoice);
@@ -848,7 +848,12 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
 function confirmInvoicePrint(){
     if(confirm("Do you want a NEW invoice number?")){
         fetch("generate_invoice.php?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>")
-        .then(res=>res.text()).then(inv=>{
+        .then(res => {
+            if (!res.ok) throw new Error("Unable to generate invoice number");
+            return res.text();
+        }).then(inv=>{
+            inv = inv.trim();
+            if (!/^\d+$/.test(inv)) throw new Error(inv || "Invalid invoice number");
             // Update all invoice number references
             document.querySelectorAll('#invoice_no, .invoice_no').forEach(function(el){
                 el.innerText = inv;
@@ -858,6 +863,8 @@ function confirmInvoicePrint(){
                 el.value = inv;
             });
             window.print();
+        }).catch(error => {
+            alert(error.message);
         });
     } else window.print();
 }

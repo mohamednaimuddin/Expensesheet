@@ -1,4 +1,10 @@
 <?php
+session_start();
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
+    http_response_code(403);
+    exit("Unauthorized");
+}
+
 include 'config.php';
 
 // Get params
@@ -12,7 +18,7 @@ if (!$username || !$from_date || !$to_date) {
 }
 
 // Find current max invoice
-$max_query = $conn->query("SELECT MAX(invoice_no) AS max_inv FROM invoices");
+$max_query = $conn->query("SELECT MAX(CAST(invoice_no AS UNSIGNED)) AS max_inv FROM invoices");
 $row = $max_query->fetch_assoc();
 $next_invoice = ($row['max_inv'] !== null) ? $row['max_inv'] + 1 : 1;
 
