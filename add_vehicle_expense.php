@@ -1,11 +1,12 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin','user'])) {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'user', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Collect POST data
@@ -53,9 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
 
     if ($stmt->execute()) {
+        logActivity($conn, LOG_ADD_EXPENSE, "Added vehicle expense: $service - $amount SAR, Vehicle ID: $vehicle_id");
         // Redirect based on user role
         if ($_SESSION['role'] === 'admin') {
             header("Location: dashboard_admin.php");
+        } elseif ($_SESSION['role'] === 'superadmin') {
+            header("Location: dashboard_superadmin.php");
         } else {
             header("Location: dashboard_user.php");
         }

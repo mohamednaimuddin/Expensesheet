@@ -7,6 +7,10 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
 include 'config.php';
 
 $username = $_SESSION['username'];
+// Define current month date range
+$first_day = date('Y-m-01');
+$last_day  = date('Y-m-t');
+
 
 // Expense tables except vehicle_expense
 $tables = [
@@ -18,17 +22,20 @@ $tables = [
     'labour_expense',
     'accessories_expense',
     'tv_expense',
-    'vehicle_expense'
+    'taxi_expense'
 ];
 
 // Total Expenses
 $total_amount = 0;
 $category_totals = [];
 foreach ($tables as $table) {
-    $sql = "SELECT SUM(amount) AS total FROM $table WHERE username=?";
+    $sql = "SELECT SUM(amount) AS total FROM $table WHERE username=? AND date BETWEEN ? AND ?";
+$stmt = $conn->prepare($sql);
+
+
     $stmt = $conn->prepare($sql);
     if (!$stmt) die("SQL prepare failed for $table: " . $conn->error);
-    $stmt->bind_param("s", $username);
+    $stmt->bind_param("sss", $username, $first_day, $last_day);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $category_totals[$table] = $row['total'] ?? 0;
@@ -36,23 +43,25 @@ foreach ($tables as $table) {
 }
 
 // Vehicle Expenses (separate query)
-$sql_vehicle = "SELECT SUM(ve.amount) AS total_vehicle
-                FROM vehicle_expense ve
-                JOIN vehicle v ON ve.vehicle_id = v.id
-                WHERE v.vehicle_owner = ?";
+$sql_vehicle = "SELECT SUM(amount) AS total FROM vehicle_expense WHERE username=? AND date BETWEEN ? AND ?";
+
 $stmt_vehicle = $conn->prepare($sql_vehicle);
+
+
 if (!$stmt_vehicle) die("SQL prepare failed for vehicle_expense: " . $conn->error);
-$stmt_vehicle->bind_param("s", $username);
+$stmt_vehicle->bind_param("sss", $username, $first_day, $last_day);
 $stmt_vehicle->execute();
 $row_vehicle = $stmt_vehicle->get_result()->fetch_assoc();
-$category_totals['vehicle_expense'] = $row_vehicle['total_vehicle'] ?? 0;
+$category_totals['vehicle_expense'] = $row_vehicle['total'] ?? 0;
 $total_amount += $category_totals['vehicle_expense'];
 
 // Total Advance
-$sql = "SELECT SUM(adv_amt) AS total_adv FROM adv_amt WHERE username=?";
+$sql = "SELECT SUM(adv_amt) AS total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?";
 $stmt = $conn->prepare($sql);
+
+
 if (!$stmt) die("SQL prepare failed for adv_amt: " . $conn->error);
-$stmt->bind_param("s", $username);
+$stmt->bind_param("sss", $username, $first_day, $last_day);
 $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $total_adv = $row['total_adv'] ?? 0;
@@ -78,130 +87,166 @@ $balance_class = $balance >= 0 ? 'positive' : 'negative';
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/vision.ico">
-<style>
-body {
-    background: linear-gradient(120deg, #f0f4ff, #f9f9f9);
-    font-family: Arial, sans-serif;
-    min-height: 100vh;
-}
-body::before {
-    content: "";
-    position: fixed;
-    top: 50%; left: 50%;
-    width: 400px; height: 400px;
-    background: url('assets/vision1.png') no-repeat center;
-    background-size: contain;
-    opacity: 0.05;
-    transform: translate(-50%, -50%);
-    z-index: 0;
-}
-.container, .navbar, footer { position: relative; z-index: 1; }
-.navbar { background: linear-gradient(90deg, #4f46e5, #ec4899); }
-.navbar-brand span { color: #fff; font-weight: bold; font-size: 1.2rem; }
-.text-white { color: #fff !important; }
-.hero {
-    background: linear-gradient(135deg, #4f46e5, #ec4899);
-    color: #fff; border-radius: 12px;
-    padding: 30px 20px; margin-bottom: 30px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-}
-.hero h1 { font-size: 2rem; }
-.hero p { font-size: 1rem; }
-.card-summary {
-    background: #fff; border-radius: 12px;
-    padding: 20px; color: #333;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    transition: transform .3s;
-}
-.card-summary:hover { transform: translateY(-5px); }
-.card-expense {
-    border-radius: 12px; color: #fff;
-    padding: 25px 20px; cursor: pointer;
-    transition: transform .3s, box-shadow .3s;
-    text-align: center;
-}
-.card-expense i { font-size: 2rem; margin-bottom: 10px; }
-.card-expense:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,.2); }
-.fuel { background: linear-gradient(135deg, #f97316, #fcd34d); }
-.food { background: linear-gradient(135deg, #10b981, #6ee7b7); }
-.room { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
-.other { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
-.tools { background: linear-gradient(135deg, #f43f5e, #fb7185); }
-.labour { background: linear-gradient(135deg, #f59e0b, #fcd34d); }
-.accessories { background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
-.tv { background: linear-gradient(135deg, #6366f1, #a5b4fc); }
-.vehicle { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
-footer { background: #ecf0f1; color: #333; padding: 15px 0; text-align: center; }
-.positive { color: green; }
-.negative { color: red; }
-</style>
+<link href="assets/dashboard_user.css" rel="stylesheet">
+<link href="assets/loader.css" rel="stylesheet">
 </head>
 <body>
 
-<!-- Navbar -->
+<!-- Page Loader -->
+<div class="page-loader" id="pageLoader">
+    <div class="loader-container">
+        <div class="brand-loader">
+            <img src="assets/visionnew.png" alt="Loading...">
+            <div class="dots-loader">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+</div>
+
 <nav class="navbar navbar-expand-lg">
   <div class="container">
     <a class="navbar-brand d-flex align-items-center" href="#">
       <img src="assets/visionangles.png" alt="Logo" style="height:40px; margin-right:10px;">
       <span>Vision Angles Security EST.</span>
     </a>
-    <div class="d-flex ms-auto align-items-center">
-      <span class="text-white me-3">👤 <?php echo ucfirst($username); ?></span>
-      <a href="logout.php" class="btn btn-danger">Logout</a>
+    
+    <!-- Mobile hamburger button -->
+    <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <i class="bi bi-list text-white" style="font-size: 1.5rem;"></i>
+    </button>
+    
+    <!-- Collapsible navigation content -->
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <div class="navbar-nav ms-auto d-flex align-items-center">
+        <span class="navbar-text text-white me-3">👤 <?php echo ucfirst($username); ?></span>
+        <a href="logout.php" class="btn btn-outline-danger">Logout</a>
+      </div>
     </div>
   </div>
 </nav>
 
-<div class="container my-4">
-    <!-- Hero -->
+<div class="container my-3">
     <div class="hero text-center">
-        <h1>Welcome</h1>
-        <p>Quick overview of your advances and expenses</p>
-        <div class="row mt-4">
-            <div class="col-md-4 mb-3">
+        <h1>Welcome Back, <?php echo ucfirst($username); ?>!</h1>
+        <p>Your financial overview for the current month.</p>
+        <div class="row mt-3">
+            <div class="col-lg-3 col-md-6 col-sm-12 mb-2">
                 <a href="adv_report_user.php" class="text-decoration-none">
-                    <div class="card-summary">
-                        <h5>💰 Advance</h5>
-                        <p>SAR <?php echo number_format($total_adv, 2); ?></p>
+                    <div class="card-summary advance">
+                        <h5>💰 Total Advance</h5>
+                        <p class="amount-lg">SAR <?php echo number_format($total_adv, 2); ?></p>
                     </div>
                 </a>
             </div>
-            <div class="col-md-4 mb-3">
+            <div class="col-lg-3 col-md-6 col-sm-12 mb-2">
                 <a href="report.php" class="text-decoration-none">
-                    <div class="card-summary">
-                        <h5>💸 Expenses</h5>
-                        <p>SAR <?php echo number_format($total_amount, 2); ?></p>
+                    <div class="card-summary expense">
+                        <h5>💸 Total Expenses</h5>
+                        <p class="amount-lg">SAR <?php echo number_format($total_amount, 2); ?></p>
                     </div>
                 </a>
             </div>
-            <div class="col-md-4 mb-3">
-                <div class="card-summary">
-                    <h5>🧾 Balance</h5>
-                    <p class="<?php echo $balance_class; ?>">SAR <?php echo number_format($balance, 2); ?></p>
+            <div class="col-lg-3 col-md-6 col-sm-12 mb-2">
+                <div class="card-summary balance">
+                    <h5>🧾 Current Balance</h5>
+                    <p class="amount-lg <?php echo $balance_class; ?>">SAR <?php echo number_format($balance, 2); ?></p>
                 </div>
             </div>
+            <!-- <div class="col-lg-3 col-md-6 col-sm-12 mb-2">
+                <a href="analytics.php" class="text-decoration-none">
+                    <div class="card-summary expense">
+                        <h5><i class="bi bi-bar-chart-line"></i> Analytics</h5>
+                        <p class="amount-lg">Open</p>
+                    </div>
+                </a>
+            </div> -->
         </div>
     </div>
 
-    <!-- Expense Cards -->
-    <div class="row g-4 mt-4">
-        <div class="col-md-3"><div class="card-expense fuel" onclick="openPopup('fuelPopup')"><i class="bi bi-fuel-pump"></i><h5>⛽ Fuel</h5><p>SAR <?php echo number_format($category_totals['fuel_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense food" onclick="openPopup('foodPopup')"><i class="bi bi-egg-fried"></i><h5>🍽️ Food</h5><p>SAR <?php echo number_format($category_totals['food_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense room" onclick="openPopup('roomPopup')"><i class="bi bi-house-door"></i><h5>🏨 Hotel</h5><p>SAR <?php echo number_format($category_totals['room_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense other" onclick="openPopup('otherPopup')"><i class="bi bi-lightbulb"></i><h5>💡 Other</h5><p>SAR <?php echo number_format($category_totals['other_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense tools" onclick="openPopup('toolsPopup')"><i class="bi bi-tools"></i><h5>🛠️ Tools</h5><p>SAR <?php echo number_format($category_totals['tools_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense labour" onclick="openPopup('labourPopup')"><i class="bi bi-person-workspace"></i><h5>👷 Labour</h5><p>SAR <?php echo number_format($category_totals['labour_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense accessories" onclick="openPopup('accessoriesPopup')"><i class="bi bi-bag"></i><h5>🎒 Accessories</h5><p>SAR <?php echo number_format($category_totals['accessories_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense tv" onclick="openPopup('tvPopup')"><i class="bi bi-tv"></i><h5>📺 TV</h5><p>SAR <?php echo number_format($category_totals['tv_expense'], 2); ?></p></div></div>
-        <div class="col-md-3"><div class="card-expense vehicle" onclick="openPopup('vehiclePopup')"><i class="bi bi-car-front"></i><h5>🚗 Vehicle</h5><p>SAR <?php echo number_format($category_totals['vehicle_expense'], 2); ?></p></div></div>
+    <h2 class="text-center my-3 expense-title">Monthly Expense Breakdown</h2>
+
+    <div class="row g-3 mb-3 expense-grid">
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense fuel" onclick="openPopup('fuelPopup')">
+                <i class="bi bi-fuel-pump"></i>
+                <h5>Fuel</h5>
+                <p>SAR <?php echo number_format($category_totals['fuel_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense food" onclick="openPopup('foodPopup')">
+                <i class="bi bi-egg-fried"></i>
+                <h5>Food</h5>
+                <p>SAR <?php echo number_format($category_totals['food_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense room" onclick="openPopup('roomPopup')">
+                <i class="bi bi-house-door"></i>
+                <h5>Hotel</h5>
+                <p>SAR <?php echo number_format($category_totals['room_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense other" onclick="openPopup('otherPopup')">
+                <i class="bi bi-lightbulb"></i>
+                <h5>Other</h5>
+                <p>SAR <?php echo number_format($category_totals['other_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense tools" onclick="openPopup('toolsPopup')">
+                <i class="bi bi-tools"></i>
+                <h5>Tools</h5>
+                <p>SAR <?php echo number_format($category_totals['tools_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense labour" onclick="openPopup('labourPopup')">
+                <i class="bi bi-person-workspace"></i>
+                <h5>Labour</h5>
+                <p>SAR <?php echo number_format($category_totals['labour_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense accessories" onclick="openPopup('accessoriesPopup')">
+                <i class="bi bi-bag"></i>
+                <h5>Accessories</h5>
+                <p>SAR <?php echo number_format($category_totals['accessories_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense tv" onclick="openPopup('tvPopup')">
+                <i class="bi bi-tv"></i>
+                <h5>TV</h5>
+                <p>SAR <?php echo number_format($category_totals['tv_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense vehicle" onclick="openPopup('vehiclePopup')">
+                <i class="bi bi-car-front"></i>
+                <h5>Vehicle</h5>
+                <p>SAR <?php echo number_format($category_totals['vehicle_expense'], 2); ?></p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 col-12 mb-2">
+            <div class="card-expense taxi" onclick="openPopup('taxiPopup')">
+                <i class="bi bi-taxi-front"></i>
+                <h5>TAXI - Pickup</h5>
+                <p>SAR <?php echo number_format($category_totals['taxi_expense'], 2); ?></p>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Popups -->
 <?php include 'popup_forms.php'; ?>
 
 <footer>
-  <p>© 2025 VisionAngles | User Dashboard</p>
+  <p>© 2026 VisionAngles | User Dashboard</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -213,11 +258,36 @@ flatpickr("#roomDate", { dateFormat: "d-m-Y" });
 flatpickr("#otherDate", { dateFormat: "d-m-Y" });
 flatpickr("#toolsDate", { dateFormat: "d-m-Y" });
 flatpickr("#accessoriesDate", { dateFormat: "d-m-Y" });
-flatpickr("#tvDate", { dateFormat: "d-m-Y" })
+flatpickr("#tvDate", { dateFormat: "d-m-Y" });
+flatpickr("#taxiDate", { dateFormat: "d-m-Y" });
 
 function openPopup(id){ document.getElementById(id).classList.add('active'); }
 function closePopup(id){ document.getElementById(id).classList.remove('active'); }
 window.onclick = function(e){ document.querySelectorAll('.popup').forEach(p=>{ if(e.target==p) p.classList.remove('active'); }); }
+
+// Hide loader when page is fully loaded
+window.addEventListener('load', function() {
+    const loader = document.getElementById('pageLoader');
+    if (loader) {
+        loader.classList.add('hidden');
+        setTimeout(() => { loader.style.display = 'none'; }, 500);
+    }
+});
+
+// Show loader on navigation to other pages
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('a[href]:not([href^="#"]):not([href^="javascript"])').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            if (!this.getAttribute('onclick')) {
+                const loader = document.getElementById('pageLoader');
+                if (loader) {
+                    loader.style.display = '';
+                    loader.classList.remove('hidden');
+                }
+            }
+        });
+    });
+});
 </script>
 </body>
 </html>

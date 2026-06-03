@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
@@ -16,7 +16,7 @@ $username_filter = isset($_GET['username']) ? $_GET['username'] : 'All';
 $users_result = $conn->query("SELECT username FROM users ORDER BY username ASC");
 
 // Build SQL query
-$sql = "SELECT * FROM advance_amt WHERE 1=1";
+$sql = "SELECT * FROM adv_amt WHERE 1=1";
 $params = [];
 $types = "";
 
@@ -60,6 +60,7 @@ $result->data_seek(0);
 <link href="assets/user_report.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets\vision.ico">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="assets/loader.css">
 <style>
 .total-spent {
     margin: 15px 0;
@@ -76,6 +77,16 @@ $result->data_seek(0);
 </style>
 </head>
 <body>
+
+<!-- Page Loader -->
+<div class="page-loader" id="pageLoader">
+    <div class="brand-loader">
+        <img src="assets/visionlogo.jpg" alt="VisionAngles" class="loader-logo">
+        <div class="dots-loader">
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+</div>
 
 <div class="report-header">
     <img src="assets/visionlogo.jpg" alt="Company Logo">
@@ -99,6 +110,7 @@ $result->data_seek(0);
         <button type="submit">Filter</button>
         <button type="button" onclick="window.print()">Print</button>
         <button type="button" onclick="window.location='advance_report.php'">Clear Filters</button>
+        <button type="button" onclick="window.location='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">Dashboard</button>
     </form>
 
     <div class="total-spent">Total Advance: <?php echo number_format($total_adv,2); ?></div>
@@ -122,7 +134,7 @@ $result->data_seek(0);
                     <td><?php echo $row['date']; ?></td>
                     <td><?php echo $row['username']; ?></td>
                     <td><?php echo $row['adv_amt']; ?></td>
-                    <td><?php echo $row['timestamp']; ?></td>
+                    <td><?php echo $row['created_at']; ?></td>
                 </tr>
             <?php endwhile; ?>
         <?php else: ?>
@@ -131,5 +143,15 @@ $result->data_seek(0);
     </tbody>
 </table>
 
+<script>
+// Hide loader when page is fully loaded
+window.addEventListener('load', function() {
+    const loader = document.getElementById('pageLoader');
+    if (loader) {
+        loader.classList.add('hidden');
+        setTimeout(() => { loader.style.display = 'none'; }, 500);
+    }
+});
+</script>
 </body>
 </html>

@@ -1,12 +1,13 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 $username = $_SESSION['username'];
 include 'config.php';
+include 'log_helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $brand           = $_POST['brand'];
@@ -34,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
 
     if ($stmt->execute()) {
+        logActivity($conn, LOG_ADD_VEHICLE, "Added vehicle: $brand $model ($number_plate)");
         header("Location: vehicle.php");
         exit();
     } else {
@@ -76,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <select name="brand" class="form-select" required>
         <option value="" disabled selected>Select Brand</option>
         <option value="Toyota">Toyota</option>
-        <option value="Honda">Suzuki</option>
+        <option value="Suzuki">Suzuki</option>
         <option value="Nissan">Nissan</option>
         <option value="Hyundai">Hyundai</option>
         <option value="Kia">Kia</option>
@@ -151,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <footer class="text-center py-3 mt-5">
-    <p class="mb-0">© 2025 VisionAngles | Vehicle Management</p>
+    <p class="mb-0">© 2026 VisionAngles | Vehicle Management</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

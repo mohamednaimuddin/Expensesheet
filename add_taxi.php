@@ -6,7 +6,6 @@ if (!isset($_SESSION['username'])) {
 }
 
 include 'config.php';
-include 'log_helper.php';
 
 $username = $_SESSION['username'];
 
@@ -17,41 +16,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $region = trim($_POST['region']);
     $company = trim($_POST['company']);
     $store = trim($_POST['store']);
-    $location = trim($_POST['location']);
-    $people = (int)$_POST['people'];
-    $description = trim($_POST['description']);
+    $from_location = trim($_POST['from_location']);
+    $to_location = trim($_POST['to_location']);
     $amount = (float)$_POST['amount'];
     $bill = trim($_POST['bill']);
 
     // Prepare statement
-    $stmt = $conn->prepare("INSERT INTO food_expense 
-        (username, division, date, region, company, store, location, people, description, amount, bill, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+    $stmt = $conn->prepare("INSERT INTO taxi_expense 
+        (username, division, date, region, company, store, from_location, to_location, amount, bill, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
     if (!$stmt) {
         die("Prepare failed: " . $conn->error);
     }
 
-    // Bind parameters correctly
+    // Bind parameters
     $stmt->bind_param(
-        "sssssssisss",
+        "ssssssssds",
         $username,
         $division,
         $date,
         $region,
         $company,
         $store,
-        $location,
-        $people,
-        $description,
+        $from_location,
+        $to_location,
         $amount,
         $bill
     );
 
     // Execute
     if ($stmt->execute()) {
-        logActivity($conn, LOG_ADD_EXPENSE, "Added food expense: $amount SAR at $location");
-        header("Location: dashboard_user.php?success=food");
+        header("Location: dashboard_user.php?success=taxi");
         exit();
     } else {
         echo "Error: " . $stmt->error;

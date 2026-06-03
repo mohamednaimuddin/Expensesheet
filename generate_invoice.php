@@ -17,12 +17,21 @@ $row = $max_query->fetch_assoc();
 $next_invoice = ($row['max_inv'] !== null) ? $row['max_inv'] + 1 : 1;
 
 // Insert new invoice record
+
 $stmt = $conn->prepare("
     INSERT INTO invoices (username, from_date, to_date, region, invoice_no) 
     VALUES (?, ?, ?, ?, ?)
 ");
+if (!$stmt) {
+    http_response_code(500);
+    echo "ERROR: Prepare failed: ".$conn->error;
+    exit;
+}
 $stmt->bind_param("ssssi", $username, $from_date, $to_date, $region_filter, $next_invoice);
-$stmt->execute();
-
+if (!$stmt->execute()) {
+    http_response_code(500);
+    echo "ERROR: Execute failed: ".$stmt->error;
+    exit;
+}
 // Return new invoice number (5-digit padded)
 echo str_pad($next_invoice, 5, "0", STR_PAD_LEFT);

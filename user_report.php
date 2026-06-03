@@ -1,6 +1,6 @@
-<?php 
+<?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
@@ -12,6 +12,9 @@ if (!isset($_GET['username']) || empty($_GET['username'])) {
     die("User not specified!");
 }
 $username = $_GET['username'];
+// Initialize carrydown variables
+$total_carry = 0.0;
+$carrydown_tooltip = "";
 
 // Get user full name
 $stmt = $conn->prepare("SELECT full_name FROM users WHERE username = ?");
@@ -21,29 +24,38 @@ $user_result = $stmt->get_result();
 if ($user_result->num_rows === 0) die("User not found!");
 $full_name = $user_result->fetch_assoc()['full_name'];
 
-// ✅ Default to current month if no dates provided
-if (empty($_GET['from_date']) || empty($_GET['to_date'])) {
-    $from_date = date("Y-m-01");
-    $to_date   = date("Y-m-t");
+// Default to current month if month filter missing
+if (empty($_GET['month'])) {
+    $selected_month = date("Y-m");
 } else {
-    $from_date = $_GET['from_date'];
-    $to_date   = $_GET['to_date'];
+    $selected_month = $_GET['month'];
 }
-$region_filter = $_GET['region'] ?? 'All';
+$from_date = date("Y-m-01", strtotime($selected_month . "-01"));
+$to_date   = date("Y-m-t", strtotime($selected_month . "-01"));
+$region_filter = isset($_GET['region']) ? $_GET['region'] : 'All';
+$types = ['All','Fuel','Food','Room','Other','Tools','Labour','Accessories','TV','Vehicle','Taxi'];
+$type_filter = isset($_GET['type']) ? $_GET['type'] : 'All';
 
-// Fetch expenses function (only submitted=1)
+
+// Fetch expenses function
 function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', $region = 'All') {
     if ($table === 'vehicle_expense') {
         $sql = "SELECT ve.id, ve.username,
-                   CONCAT(v.model, ' - ', v.number_plate, ' - ', ve.service, ' - ', ve.description) AS description,
-                   ve.amount, ve.date,
-                   '' as division, '' as company, '' as location, '' as store, '' as region
-            FROM vehicle_expense ve
-            LEFT JOIN vehicle v ON ve.vehicle_id = v.id
-            WHERE ve.username=? AND ve.submitted=1";
+                       CONCAT(IFNULL(v.model,''), ' - ', IFNULL(v.number_plate,''), ' - ', ve.service, IF(ve.description IS NOT NULL, CONCAT(' - ', ve.description), '')) AS description,
+                       ve.amount, ve.date, ve.service, ve.bill,
+                       '' as division, '' as company, '' as location, '' as store, '' as region
+                FROM vehicle_expense ve
+                LEFT JOIN vehicle v ON ve.vehicle_id = v.id
+                WHERE ve.username=? AND ve.submitted=1";
+    } elseif ($table === 'taxi_expense') {
+        $sql = "SELECT id, username, CONCAT(from_location, ' → ', to_location) AS description, 
+                       amount, date, division, company, '' as location, store, region, bill,
+                       from_location, to_location
+                FROM $table
+                WHERE username=? AND submitted=1";
     } else {
-        $sql = "SELECT id, username, description, amount, date, division, company, location, store, region
-                FROM $table 
+        $sql = "SELECT id, username, description, amount, date, division, company, location, store, region, bill
+                FROM $table
                 WHERE username=? AND submitted=1";
     }
 
@@ -65,21 +77,19 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
 
     $sql .= " ORDER BY `date` ASC";
     $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        die("Prepare failed: " . $conn->error . " | SQL: " . $sql);
-    }
+    if (!$stmt) die("Prepare failed: " . $conn->error);
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
     return $stmt->get_result();
 }
 
-// Pagination setup
+// Pagination
 $limit = 20;
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int) $_GET['page'] : 1;
 if ($page < 1) $page = 1;
 $offset = ($page - 1) * $limit;
 
-// Fetch all expenses
+// Fetch expenses
 $expense_tables = [
     'Fuel' => 'fuel_expense',
     'Food' => 'food_expense',
@@ -89,7 +99,8 @@ $expense_tables = [
     'Labour' => 'labour_expense',
     'Accessories' => 'accessories_expense',
     'TV' => 'tv_expense',
-    'Vehicle' => 'vehicle_expense'
+    'Vehicle' => 'vehicle_expense',
+    'Taxi' => 'taxi_expense'
 ];
 
 $expenses_list = [];
@@ -97,17 +108,124 @@ foreach ($expense_tables as $type => $table) {
     $expenses_list[$type] = get_expenses($conn, $table, $username, $from_date, $to_date, $region_filter);
 }
 
+// Combine expenses
 $total_amount = 0;
 $all_expenses = [];
+$total_amount = 0;
 foreach ($expenses_list as $type => $result) {
+    if ($type_filter != 'All' && $type != $type_filter) continue; // Skip types not selected
     while ($row = $result->fetch_assoc()) {
         $row['type'] = $type;
         $all_expenses[] = $row;
         $total_amount += $row['amount'];
     }
 }
+$type_totals = [];
+if ($type_filter == 'All') {
+    foreach ($expense_tables as $type => $table) {
+        $type_totals[$type] = 0;
+    }
+    foreach ($all_expenses as $row) {
+        $type_totals[$row['type']] += $row['amount'];
+    }
+}
 
-// Handle advance submission
+// Sort and paginate
+usort($all_expenses, function($a, $b) {
+    return strtotime($a['date']) - strtotime($b['date']);
+});
+
+$total_records = count($all_expenses);
+$paged_expenses = array_slice($all_expenses, $offset, $limit);
+
+// ----------------------
+// Handle Expense Edit Submission (AJAX)
+// ----------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_expense'])) {
+    header('Content-Type: application/json');
+    
+    $expense_id = intval($_POST['expense_id']);
+    $expense_type = strtolower($_POST['expense_type']);
+    $date = $_POST['date'] ?? '';
+    $division = $_POST['division'] ?? '';
+    $company = $_POST['company'] ?? '';
+    $location = $_POST['location'] ?? '';
+    $store = $_POST['store'] ?? '';
+    $description = $_POST['description'] ?? '';
+    $amount = $_POST['amount'] ?? '';
+    $bill = $_POST['bill'] ?? '';
+    $service = $_POST['service'] ?? '';
+    
+    $tables = [
+        'fuel' => 'fuel_expense',
+        'food' => 'food_expense',
+        'room' => 'room_expense',
+        'other' => 'other_expense',
+        'tools' => 'tools_expense',
+        'labour' => 'labour_expense',
+        'accessories' => 'accessories_expense',
+        'tv' => 'tv_expense',
+        'vehicle' => 'vehicle_expense',
+        'taxi' => 'taxi_expense'
+    ];
+    
+    if (!array_key_exists($expense_type, $tables)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid expense type']);
+        exit();
+    }
+    
+    $table = $tables[$expense_type];
+    $is_tools = ($table === 'tools_expense');
+    $is_labour = ($table === 'labour_expense');
+    $is_vehicle = ($table === 'vehicle_expense');
+    $is_taxi = ($table === 'taxi_expense');
+    
+    if (empty($bill)) {
+        echo json_encode(['success' => false, 'error' => 'Please select Bill option']);
+        exit();
+    }
+    
+    if ($is_vehicle) {
+        if (empty($service) || !is_numeric($amount)) {
+            echo json_encode(['success' => false, 'error' => 'Please fill all required fields correctly']);
+            exit();
+        }
+        $update = $conn->prepare("UPDATE vehicle_expense SET service=?, amount=?, bill=? WHERE id=?");
+        $update->bind_param("sdsi", $service, $amount, $bill, $expense_id);
+    } elseif ($is_taxi) {
+        $from_location = $_POST['from_location'] ?? '';
+        $to_location = $_POST['to_location'] ?? '';
+        
+        if (empty($date) || empty($amount) || !is_numeric($amount) || empty($from_location) || empty($to_location)) {
+            echo json_encode(['success' => false, 'error' => 'Please fill all required fields correctly']);
+            exit();
+        }
+        $update = $conn->prepare("UPDATE $table SET date=?, division=?, company=?, store=?, from_location=?, to_location=?, amount=?, bill=? WHERE id=?");
+        $update->bind_param("ssssssdsi", $date, $division, $company, $store, $from_location, $to_location, $amount, $bill, $expense_id);
+    } else {
+        $disable_fields = $is_tools || (!$is_labour && in_array($division, ['Recharge', 'Other']));
+        
+        if (empty($date) || empty($amount) || !is_numeric($amount)) {
+            echo json_encode(['success' => false, 'error' => 'Please fill all required fields correctly']);
+            exit();
+        }
+        
+        // Always update all fields - the JavaScript already sends the correct values
+        $update = $conn->prepare("UPDATE $table SET date=?, division=?, company=?, location=?, store=?, description=?, amount=?, bill=? WHERE id=?");
+        $update->bind_param("ssssssdsi", $date, $division, $company, $location, $store, $description, $amount, $bill, $expense_id);
+    }
+    
+    if ($update->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Update failed: ' . $conn->error]);
+    }
+    exit();
+}
+
+// ----------------------
+// Handle Advance Submission
+// ----------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_advance'])) {
     $adv_date = $_POST['adv_date'];
     $adv_amount = $_POST['adv_amount'];
@@ -121,28 +239,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_advance'])) {
     exit();
 }
 
-// ✅ Initialize to prevent undefined warnings
-$total_carry = 0.0;
-$carrydown_tooltip = "";
-$total_adv = 0.0;
-
 // ----------------------
-// Carrydown auto logic
+// Handle Carrydown Submission
 // ----------------------
-$current_month = date("Y-m");
-$prev_month = date("Y-m", strtotime("-1 month"));
-$first_day_prev = date("Y-m-01", strtotime("-1 month"));
-$last_day_prev  = date("Y-m-t", strtotime("-1 month"));
+$current_month = date("Y-m", strtotime($from_date));
+$prev_month = date("Y-m", strtotime("$from_date -1 month"));
+$first_day_prev = date("Y-m-01", strtotime("$from_date -1 month"));
+$last_day_prev  = date("Y-m-t", strtotime("$from_date -1 month"));
 
-// Check if carrydown exists
+// Check if carrydown exists for current month
 $stmt = $conn->prepare("SELECT id, amount, description FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? LIMIT 1");
 $stmt->bind_param("ss", $username, $current_month);
 $stmt->execute();
 $current_month_carry = $stmt->get_result()->fetch_assoc();
 $carrydown_exists = !empty($current_month_carry);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_carrydown'])) {
+    $cd_amount = floatval($_POST['cd_amount']);
+    $cd_desc = $_POST['cd_desc'];
+
+    if ($carrydown_exists) {
+        // Update existing
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, description=?, updated_at=NOW() WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=?");
+        $stmt->bind_param("dsss", $cd_amount, $cd_desc, $username, $current_month);
+    } else {
+        // Insert new
+        $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
+        $stmt->bind_param("sds", $username, $cd_amount, $cd_desc);
+    }
+    $stmt->execute();
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
+// ----------------------
+// Handle Recalculate Carrydown (current month and all future months)
+// ----------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry'])) {
+    // Delete carrydown for current month and all future months for this user
+    $stmt = $conn->prepare("DELETE FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m') >= ?");
+    $stmt->bind_param("ss", $username, $current_month);
+    $stmt->execute();
+    
+    // Now recalculate carrydown for current month and all future months that have data
+    $recalc_month = $current_month;
+    $today_month = date("Y-m");
+    
+    while ($recalc_month <= $today_month) {
+        $recalc_first_day = $recalc_month . "-01";
+        $recalc_last_day = date("Y-m-t", strtotime($recalc_first_day));
+        $recalc_prev_month = date("Y-m", strtotime("$recalc_first_day -1 month"));
+        $recalc_prev_first = date("Y-m-01", strtotime("$recalc_first_day -1 month"));
+        $recalc_prev_last = date("Y-m-t", strtotime("$recalc_first_day -1 month"));
+        
+        // Calculate previous month's expenses
+        $expense_tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
+        $total_prev_exp = 0.0;
+        foreach ($expense_tables as $table) {
+            $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("sss", $username, $recalc_prev_first, $recalc_prev_last);
+            $stmt->execute();
+            $res = $stmt->get_result()->fetch_assoc();
+            $total_prev_exp += $res ? floatval($res['amt']) : 0.0;
+        }
+        
+        // Get previous month's advance
+        $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
+        $stmt->bind_param("sss", $username, $recalc_prev_first, $recalc_prev_last);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $prev_adv = $res ? floatval($res['total_adv']) : 0.0;
+        
+        // Get previous month's carrydown
+        $stmt = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? ORDER BY created_at DESC LIMIT 1");
+        $stmt->bind_param("ss", $username, $recalc_prev_month);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $prev_cd = $res ? floatval($res['amount']) : 0.0;
+        
+        // Calculate new carrydown: (prev_advance + prev_carrydown) - prev_expenses
+        $new_carrydown = ($prev_adv + $prev_cd) - $total_prev_exp;
+        $cd_desc = "Carryforward from " . date("M Y", strtotime($recalc_prev_first));
+        
+        // Insert new carrydown for this month
+        $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, ?)");
+        $created_at = $recalc_first_day . " 00:00:00";
+        $stmt->bind_param("sdss", $username, $new_carrydown, $cd_desc, $created_at);
+        $stmt->execute();
+        
+        // Move to next month
+        $recalc_month = date("Y-m", strtotime("$recalc_first_day +1 month"));
+    }
+    
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
+// Auto-insert carrydown if missing
 if (!$carrydown_exists) {
-    // Sum all expenses last month
     $tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
     $total_prev_expenses = 0.0;
     foreach ($tables as $table) {
@@ -150,50 +345,51 @@ if (!$carrydown_exists) {
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
         $stmt->execute();
-        $total_prev_expenses += floatval($stmt->get_result()->fetch_assoc()['amt'] ?? 0);
+        $total_prev_expenses += floatval($stmt->get_result()->fetch_assoc()['amt']);
     }
 
-    // Sum advances last month
     $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
     $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
     $stmt->execute();
-    $total_prev_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv'] ?? 0);
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $total_prev_adv = $row ? floatval($row['total_adv']) : 0.0;
 
-    // Previous carrydown
     $stmt = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? ORDER BY created_at DESC LIMIT 1");
     $stmt->bind_param("ss", $username, $prev_month);
     $stmt->execute();
-    $prev_carry = floatval($stmt->get_result()->fetch_assoc()['amount'] ?? 0);
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $prev_carry = $row ? floatval($row['amount']) : 0.0;
 
     $last_month_balance = ($total_prev_adv + $prev_carry) - $total_prev_expenses;
 
-    $carrydown_value = $last_month_balance;
     $carrydown_desc = "Carryforward from " . date("M Y", strtotime($first_day_prev));
-
     $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
-    $stmt->bind_param("sds", $username, $carrydown_value, $carrydown_desc);
+    $stmt->bind_param("sds", $username, $last_month_balance, $carrydown_desc);
     $stmt->execute();
+
+    $carrydown_value = $last_month_balance;
 } else {
-    $carrydown_value = floatval($current_month_carry['amount']);
-    $carrydown_desc = $current_month_carry['description'];
+    $carrydown_value = floatval($current_month_carry['amount']);   // <-- FIXED
+    $carrydown_desc  = $current_month_carry['description'];         // <-- FIXED
 }
 
-// ✅ Apply values
-$total_carry = $carrydown_value ?? 0;
-$carrydown_tooltip = $carrydown_desc ?? "";
+// Assign to total_carry for HTML display
+$total_carry = $carrydown_value;
 
-// ✅ Fetch advances in selected date range
+
+// Fetch advances in selected range
 $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
 $stmt->bind_param("sss", $username, $from_date, $to_date);
 $stmt->execute();
 $total_adv = floatval($stmt->get_result()->fetch_assoc()['total_adv'] ?? 0);
 
-// Invoice logic (unchanged)
+// Invoice handling
 $stmt = $conn->prepare("SELECT invoice_no FROM invoices WHERE username=? AND from_date=? AND to_date=? AND region=?");
 $stmt->bind_param("ssss", $username, $from_date, $to_date, $region_filter);
 $stmt->execute();
 $invoice_result = $stmt->get_result();
-
 if ($invoice_result->num_rows > 0) {
     $invoice_no = str_pad($invoice_result->fetch_assoc()['invoice_no'], 5, "0", STR_PAD_LEFT);
 } else {
@@ -204,11 +400,8 @@ if ($invoice_result->num_rows > 0) {
     $stmt->execute();
     $invoice_no = str_pad($next_invoice, 5, "0", STR_PAD_LEFT);
 }
+$total_carry = $carrydown_value;
 
-// Sort expenses
-usort($all_expenses, fn($a, $b) => strtotime($a['date']) <=> strtotime($b['date']));
-$total_records = count($all_expenses);
-$paged_expenses = array_slice($all_expenses, $offset, $limit);
 ?>
 
 
@@ -220,6 +413,7 @@ $paged_expenses = array_slice($all_expenses, $offset, $limit);
 <title>User Expense Report | VisionAngles</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link href="assets/user_report.css" rel="stylesheet">
+<link href="assets/loader.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/vision.ico">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"> 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
@@ -229,6 +423,7 @@ $paged_expenses = array_slice($all_expenses, $offset, $limit);
 .table { border: 2px solid black; border-collapse: collapse; }
 th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wrap: break-word; }
 @media print {
+    .total-summary { font-size: 11px; margin-top: 5px; text-align: right; }
     body { -webkit-print-color-adjust: exact; color-adjust: exact; margin: 10mm; font-size: 12px; background: #fff; }
     body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('assets/vision1.png') no-repeat center center; background-size: 50%; opacity: 0.05; z-index: 9999; pointer-events: none; background-color: #aeb6bd; }
     table { width: 100%; border-collapse: collapse; border: 2px solid black; page-break-inside: auto; }
@@ -239,6 +434,11 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     th, td { border: 0.5px solid black; padding: 4px 6px; font-size: 11px; text-align: left; word-wrap: break-word; color: black; }
     button, input, select { display: none !important; }
     .total-summary { display: flex; justify-content: flex-end; text-align: right; margin-top: 20px; }
+    /* Prevent scrollbars from printing */
+    html, body { overflow: visible !important; height: auto !important; }
+    .table-responsive { overflow: visible !important; }
+    /* Hide any webkit scrollbars in print context */
+    .table-responsive::-webkit-scrollbar { display: none !important; }
 }
 /* Modal styling */
 .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
@@ -251,28 +451,63 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
 </head>
 <body>
 
+<!-- Page Loader -->
+<div class="page-loader" id="pageLoader">
+    <div class="loader-container">
+        <div class="loader-spinner"></div>
+        <div class="loader-text">Loading...</div>
+    </div>
+</div>
+
 <div class="report-header">
     <h2>Expense Report</h2>
     <div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></div>
 </div>
 
-<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3"> <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>"> <div class="form-group"><input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="<?php echo htmlspecialchars($from_date); ?>" required></div> <div class="form-group"><input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="<?php echo htmlspecialchars($to_date); ?>" required></div> <div class="form-group"> <select class="form-select form-select-sm" id="region" name="region"> <?php $regions = ['All','Dammam','Riyadh','Jeddah','Other']; foreach ($regions as $region) { $selected = ($region_filter == $region) ? 'selected' : ''; echo "<option value=\"$region\" $selected>$region</option>"; } ?> </select> </div> <div class="btn-group"> <button class="btn btn-outline-primary btn-sm" type="submit">Search</button> <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">Clear</button> <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button> <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">Export</button> <button class="btn btn-info btn-sm" <?= $carrydown_exists ? 'disabled' : '' ?> onclick="openCarrydownModal()">Add Carrydown</button> <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button> </div> </form>
+<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>">
+    
+    <div class="form-group">
+        <label for="month" class="form-label mb-1 small">Select Month</label>
+        <input type="month" class="form-control form-control-sm" id="month" name="month" 
+               value="<?php echo htmlspecialchars($selected_month); ?>" required>
+    </div>
+    <div class="form-group">
+    <label for="region" class="form-label mb-1 small">Region</label>
+    <select class="form-select form-select-sm" id="region" name="region"> <?php $regions = ['All','Dammam','Riyadh','Jeddah','Other']; foreach ($regions as $region) { $selected = ($region_filter == $region) ? 'selected' : ''; echo "<option value=\"$region\" $selected>$region</option>"; } ?></select></div> 
+    <div class="btn-group align-self-end">
+        <button class="btn btn-outline-primary btn-sm" type="submit">
+            Search
+        </button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">
+        Clear
+    </button>
+    <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">Print</button>
+    <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location='export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>'">
+        Export
+    </button>
+    <button class="btn btn-info btn-sm" <?php echo $carrydown_exists ? 'disabled' : ''; ?> onclick="openCarrydownModal()">
+        Add Carrydown
+    </button>
+    <div class="form-group">
+        <select class="form-select form-select-sm" id="type" name="type">
+            <?php foreach($types as $type): 
+                $selected = ($type_filter == $type) ? 'selected' : ''; ?>
+                <option value="<?= $type ?>" <?= $selected ?>><?= $type ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+ <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">Back</button> </div> </form>
 
 <div class="print-header d-flex justify-content-between mb-3">
     <div>
         <strong>Username:</strong> <?php echo htmlspecialchars(ucfirst($username)); ?> 
         | <strong>Region:</strong> <?php echo htmlspecialchars($region_filter); ?><br>
-        <strong>From:</strong> <?php echo htmlspecialchars($from_date); ?> 
-        <strong>To:</strong> <?php echo htmlspecialchars($to_date); ?>
+        <strong>Month:</strong> <?php echo date("F Y", strtotime($selected_month . "-01")); ?>
     </div>
     <div style="text-align:right;">
-        <strong>Carrydown:</strong> SAR <?php echo number_format($total_carry, 2); ?>
-        <?php if ($carrydown_tooltip): ?>
-            <i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" data-bs-placement="left" title="<?php echo htmlspecialchars($carrydown_tooltip); ?>"></i>
-        <?php endif; ?>
-        <?php if($carrydown_exists): ?>
-            <i class="bi bi-pencil-square text-success ms-1" style="cursor:pointer;" onclick="openCarrydownModal()"></i>
-        <?php endif; ?><br>
+        <strong>Brought Down (B/d):</strong> SAR <?php echo number_format($total_carry, 2); ?>
+        <button type="button" class="btn btn-warning btn-sm" onclick="openRecalculateModal()">Re-Calculate</button><br>
         <strong>Advance:</strong> SAR <?php echo number_format($total_adv, 2); ?>
     </div>
 </div>
@@ -308,7 +543,20 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
                 <td>SAR <?= number_format($row['amount'], 2) ?></td>
                 <td>
                     <div class="d-flex flex-column flex-md-row gap-1">
-                        <button class="btn btn-warning btn-sm" onclick="window.location='edit_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Edit</button>
+                        <button class="btn btn-warning btn-sm editExpenseBtn" 
+                            data-id="<?= $row['id'] ?>"
+                            data-type="<?= $row['type'] ?>"
+                            data-date="<?= $row['date'] ?>"
+                            data-division="<?= htmlspecialchars($row['division'] ?? '') ?>"
+                            data-company="<?= htmlspecialchars($row['company'] ?? '') ?>"
+                            data-location="<?= htmlspecialchars($row['location'] ?? '') ?>"
+                            data-store="<?= htmlspecialchars($row['store'] ?? '') ?>"
+                            data-description="<?= htmlspecialchars($row['description'] ?? '') ?>"
+                            data-amount="<?= $row['amount'] ?>"
+                            data-bill="<?= htmlspecialchars($row['bill'] ?? '') ?>"
+                            data-service="<?= htmlspecialchars($row['service'] ?? '') ?>"
+                            data-from_location="<?= htmlspecialchars($row['from_location'] ?? '') ?>"
+                            data-to_location="<?= htmlspecialchars($row['to_location'] ?? '') ?>">Edit</button>
                         <?php if($row['type'] === 'TV'): ?>
     <button class="btn btn-danger btn-sm" onclick="if(confirm('Are you sure?')) window.location='delete_tv.php?id=<?= $row['id'] ?>&username=<?= urlencode($username) ?>'">Delete</button>
 <?php else: ?>
@@ -328,7 +576,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
                 <td colspan="2">SAR <?= number_format($total_amount, 2) ?></td>
             </tr>
             <tr>
-                <td colspan="8" class="text-end fw-bold">Balance:</td>
+                <td colspan="8" class="text-end fw-bold">Carry Down (C/d):</td>
                 <td colspan="2">SAR <?= number_format(($total_adv + $total_carry) - $total_amount, 2) ?></td>
             </tr>
         </tfoot>
@@ -342,15 +590,15 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     <nav>
       <ul class="pagination justify-content-center">
         <li class="page-item <?= ($page <= 1 ? 'disabled' : '') ?>">
-          <a class="page-link" href="?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>&page=<?= $page-1 ?>">Previous</a>
+          <a class="page-link" href="?username=<?= urlencode($username) ?>&month=<?= urlencode($selected_month) ?>&region=<?= urlencode($region_filter) ?>&type=<?= urlencode($type_filter) ?>&page=<?= $page-1 ?>">Previous</a>
         </li>
         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
           <li class="page-item <?= ($i == $page ? 'active' : '') ?>">
-            <a class="page-link" href="?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>&page=<?= $i ?>"><?= $i ?></a>
+            <a class="page-link" href="?username=<?= urlencode($username) ?>&month=<?= urlencode($selected_month) ?>&region=<?= urlencode($region_filter) ?>&type=<?= urlencode($type_filter) ?>&page=<?= $i ?>"><?= $i ?></a>
           </li>
         <?php endfor; ?>
         <li class="page-item <?= ($page >= $total_pages ? 'disabled' : '') ?>">
-          <a class="page-link" href="?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>&page=<?= $page+1 ?>">Next</a>
+          <a class="page-link" href="?username=<?= urlencode($username) ?>&month=<?= urlencode($selected_month) ?>&region=<?= urlencode($region_filter) ?>&type=<?= urlencode($type_filter) ?>&page=<?= $page+1 ?>">Next</a>
         </li>
       </ul>
     </nav>
@@ -403,10 +651,23 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             </tr>
         </tfoot>
     </table>
+    <?php if($type_filter == 'All'): ?>
+    <div class="total-summary" style="font-size:12px; margin-top:10px; text-align:right;">
+        <strong>Summary by Type:</strong>
+        <?php 
+            $summary_items = [];
+            foreach($type_totals as $type => $amount) {
+                $summary_items[] = "$type: SAR " . number_format($amount, 2);
+            }
+            echo implode(" | ", $summary_items);
+        ?>
+    </div>
+<?php endif; ?>
+
 </div>
 
 <div style="text-align:right; margin-top:10px;">
-    <button onclick="window.location='manage_advance.php?username=<?= urlencode($username) ?>'">Manage Advances</button>
+    <button onclick="window.location='manage_advance.php?username=<?= urlencode($username) ?>&total_expense=<?= urlencode($total_amount) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>'">Manage Advances</button>
 </div>
 
 <div class="report-footer">
@@ -437,12 +698,164 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
   </div>
 </div>
 
+<!-- Edit Expense Modal -->
+<div id="editExpenseModal" class="modal">
+  <div class="modal-content" style="max-width: 600px;">
+    <span class="close-btn" onclick="closeEditExpenseModal()">&times;</span>
+    <h4 id="editExpenseTitle">Edit Expense</h4>
+    <form id="editExpenseForm">
+        <input type="hidden" name="edit_expense" value="1">
+        <input type="hidden" name="expense_id" id="edit_expense_id">
+        <input type="hidden" name="expense_type" id="edit_expense_type">
+        
+        <!-- Vehicle fields -->
+        <div id="vehicleFields" style="display:none;">
+            <div class="mb-3">
+                <label class="form-label">Service</label>
+                <select name="service" id="edit_service" class="form-control">
+                    <option value="">-- Select Service --</option>
+                    <option value="Engine Oil">Engine Oil</option>
+                    <option value="Gear Oil">Gear Oil</option>
+                    <option value="Tyre">Tyre</option>
+                    <option value="Brake Pad">Brake Pad</option>
+                    <option value="Brake Oil">Brake Oil</option>
+                    <option value="Fuel Injection">Fuel Injection</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Non-vehicle fields -->
+        <div id="nonVehicleFields">
+            <div class="mb-3">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" id="edit_date" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Division</label>
+                <select name="division" id="edit_division" class="form-control">
+                    <option value="">-- Select Division --</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Project">Project</option>
+                    <option value="Service">Service</option>
+                    <option value="Installation">Installation</option>
+                    <option value="Recharge">Recharge</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Company</label>
+                <select name="company" id="edit_company" class="form-control">
+                    <option value="">-- Select Company --</option>
+                    <option value="Redtag">Redtag</option>
+                    <option value="Landmark">Landmark</option>
+                    <option value="Apparel">Apparel</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="mb-3" id="edit_location_field">
+                <label class="form-label">Location</label>
+                <input type="text" name="location" id="edit_location" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Store</label>
+                <input type="text" name="store" id="edit_store" class="form-control">
+            </div>
+            <div class="mb-3" id="edit_description_field">
+                <label class="form-label">Description</label>
+                <textarea name="description" id="edit_description" class="form-control" rows="2"></textarea>
+            </div>
+        </div>
+        
+        <!-- Taxi fields -->
+        <div id="taxiFields" style="display:none;">
+            <div class="mb-3">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" id="edit_taxi_date" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Division</label>
+                <select name="division" id="edit_taxi_division" class="form-control">
+                    <option value="">-- Select Division --</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Project">Project</option>
+                    <option value="Service">Service</option>
+                    <option value="Installation">Installation</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Company</label>
+                <select name="company" id="edit_taxi_company" class="form-control">
+                    <option value="">-- Select Company --</option>
+                    <option value="Redtag">Redtag</option>
+                    <option value="Landmark">Landmark</option>
+                    <option value="Apparel">Apparel</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Store</label>
+                <input type="text" name="store" id="edit_taxi_store" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">From (Pickup Location)</label>
+                <input type="text" name="from_location" id="edit_from_location" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">To (Drop Location)</label>
+                <input type="text" name="to_location" id="edit_to_location" class="form-control">
+            </div>
+        </div>
+        
+        <!-- Common fields -->
+        <div class="mb-3">
+            <label class="form-label">Amount</label>
+            <input type="number" step="0.01" name="amount" id="edit_amount" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Bill</label>
+            <select name="bill" id="edit_bill" class="form-control" required>
+                <option value="">-- Select Bill --</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+            </select>
+        </div>
+        
+        <div id="editExpenseError" class="alert alert-danger" style="display:none;"></div>
+        
+        <button type="submit" class="btn btn-primary" id="editExpenseSubmitBtn">Update Expense</button>
+        <button type="button" class="btn btn-secondary" onclick="closeEditExpenseModal()">Cancel</button>
+    </form>
+  </div>
+</div>
+
+<!-- Recalculate Carrydown Modal -->
+<div id="recalculateModal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeRecalculateModal()">&times;</span>
+    <h4>Recalculate Carrydown</h4>
+    <p>Do you want to recalculate the carrydown? This will delete the current carrydown and recalculate it based on previous data.</p>
+    <form method="post">
+        <input type="hidden" name="delete_prev_carry" value="1">
+        <button type="submit" class="btn btn-danger">Yes, Recalculate</button>
+        <button type="button" class="btn btn-secondary" onclick="closeRecalculateModal()">Cancel</button>
+    </form>
+  </div>
+</div>
+
 <script>
 function confirmInvoicePrint(){
     if(confirm("Do you want a NEW invoice number?")){
         fetch("generate_invoice.php?username=<?= urlencode($username) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>")
         .then(res=>res.text()).then(inv=>{
-            document.getElementById("invoice_no").innerText=inv;
+            // Update all invoice number references
+            document.querySelectorAll('#invoice_no, .invoice_no').forEach(function(el){
+                el.innerText = inv;
+            });
+            // If there are input fields or hidden fields, update their value too
+            document.querySelectorAll('input[name="invoice_no"]').forEach(function(el){
+                el.value = inv;
+            });
             window.print();
         });
     } else window.print();
@@ -450,9 +863,191 @@ function confirmInvoicePrint(){
 function openCarrydownModal() { document.getElementById("carrydownModal").style.display = "block"; }
 function closeCarrydownModal() { document.getElementById("carrydownModal").style.display = "none"; }
 
+// Recalculate Modal functions
+function openRecalculateModal() { document.getElementById("recalculateModal").style.display = "block"; }
+function closeRecalculateModal() { document.getElementById("recalculateModal").style.display = "none"; }
+
+// Edit Expense Modal functions
+function openEditExpenseModal() { document.getElementById("editExpenseModal").style.display = "block"; }
+function closeEditExpenseModal() { 
+    document.getElementById("editExpenseModal").style.display = "none"; 
+    document.getElementById("editExpenseError").style.display = "none";
+}
+
+// Handle Edit buttons
+document.addEventListener("DOMContentLoaded", function() {
+    // Restore scroll position if saved
+    const savedScrollPosition = sessionStorage.getItem('scrollPosition');
+    if (savedScrollPosition) {
+        window.scrollTo(0, parseInt(savedScrollPosition));
+        sessionStorage.removeItem('scrollPosition');
+    }
+    
+    const editButtons = document.querySelectorAll(".editExpenseBtn");
+    
+    editButtons.forEach(btn => {
+        btn.addEventListener("click", function() {
+            const id = this.dataset.id;
+            const type = this.dataset.type;
+            const date = this.dataset.date;
+            const division = this.dataset.division;
+            const company = this.dataset.company;
+            const location = this.dataset.location;
+            const store = this.dataset.store;
+            const description = this.dataset.description;
+            const amount = this.dataset.amount;
+            const bill = this.dataset.bill;
+            const service = this.dataset.service;
+            const fromLocation = this.dataset.from_location || '';
+            const toLocation = this.dataset.to_location || '';
+            
+            // Set hidden fields
+            document.getElementById("edit_expense_id").value = id;
+            document.getElementById("edit_expense_type").value = type;
+            
+            // Set title
+            document.getElementById("editExpenseTitle").textContent = "Edit " + type + " Expense";
+            
+            // Show/hide fields based on type
+            const isVehicle = (type.toLowerCase() === 'vehicle');
+            const isTools = (type.toLowerCase() === 'tools');
+            const isTaxi = (type.toLowerCase() === 'taxi');
+            
+            document.getElementById("vehicleFields").style.display = isVehicle ? "block" : "none";
+            document.getElementById("taxiFields").style.display = isTaxi ? "block" : "none";
+            document.getElementById("nonVehicleFields").style.display = (isVehicle || isTaxi) ? "none" : "block";
+            
+            if (isVehicle) {
+                document.getElementById("edit_service").value = service;
+            } else if (isTaxi) {
+                document.getElementById("edit_taxi_date").value = date;
+                document.getElementById("edit_taxi_division").value = division;
+                document.getElementById("edit_taxi_company").value = company;
+                document.getElementById("edit_taxi_store").value = store;
+                document.getElementById("edit_from_location").value = fromLocation;
+                document.getElementById("edit_to_location").value = toLocation;
+            } else {
+                document.getElementById("edit_date").value = date;
+                document.getElementById("edit_division").value = division;
+                document.getElementById("edit_company").value = company;
+                document.getElementById("edit_location").value = location;
+                document.getElementById("edit_store").value = store;
+                document.getElementById("edit_description").value = description;
+                
+                // Disable fields for tools type
+                const disableFields = isTools || ['Recharge', 'Other'].includes(division);
+                document.getElementById("edit_division").disabled = isTools;
+                document.getElementById("edit_company").disabled = disableFields;
+                document.getElementById("edit_location").disabled = disableFields;
+                document.getElementById("edit_store").disabled = disableFields;
+            }
+            
+            document.getElementById("edit_amount").value = amount;
+            document.getElementById("edit_bill").value = bill;
+            
+            openEditExpenseModal();
+        });
+    });
+    
+    // Handle division change to toggle fields
+    document.getElementById("edit_division").addEventListener("change", function() {
+        const disableFields = ['Recharge', 'Other'].includes(this.value);
+        document.getElementById("edit_company").disabled = disableFields;
+        document.getElementById("edit_location").disabled = disableFields;
+        document.getElementById("edit_store").disabled = disableFields;
+    });
+    
+    // Handle form submission via AJAX
+    document.getElementById("editExpenseForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        
+        const form = this;
+        const submitBtn = document.getElementById("editExpenseSubmitBtn");
+        const errorDiv = document.getElementById("editExpenseError");
+        
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Updating...";
+        errorDiv.style.display = "none";
+        
+        // Show loader
+        document.getElementById('pageLoader').classList.remove('hidden');
+        document.querySelector('#pageLoader .loader-text').textContent = 'Updating expense...';
+        
+        const formData = new FormData(form);
+        
+        // Get expense type to determine which fields to include
+        const expenseType = document.getElementById("edit_expense_type").value.toLowerCase();
+        const isTaxi = (expenseType === 'taxi');
+        const isVehicle = (expenseType === 'vehicle');
+        
+        // Include disabled fields or taxi-specific fields
+        if (isTaxi) {
+            formData.set('date', document.getElementById("edit_taxi_date").value);
+            formData.set('division', document.getElementById("edit_taxi_division").value);
+            formData.set('company', document.getElementById("edit_taxi_company").value);
+            formData.set('store', document.getElementById("edit_taxi_store").value);
+            formData.set('from_location', document.getElementById("edit_from_location").value);
+            formData.set('to_location', document.getElementById("edit_to_location").value);
+        } else if (!isVehicle) {
+            // For non-vehicle, non-taxi expenses - include all fields even if disabled
+            formData.set('date', document.getElementById("edit_date").value);
+            formData.set('division', document.getElementById("edit_division").value);
+            formData.set('company', document.getElementById("edit_company").value);
+            formData.set('location', document.getElementById("edit_location").value);
+            formData.set('store', document.getElementById("edit_store").value);
+            formData.set('description', document.getElementById("edit_description").value);
+        }
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                closeEditExpenseModal();
+                // Save scroll position and reload
+                sessionStorage.setItem('scrollPosition', window.scrollY);
+                location.reload();
+            } else {
+                document.getElementById('pageLoader').classList.add('hidden');
+                errorDiv.textContent = data.error || 'An error occurred';
+                errorDiv.style.display = "block";
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Update Expense";
+            }
+        })
+        .catch(error => {
+            document.getElementById('pageLoader').classList.add('hidden');
+            errorDiv.textContent = 'An error occurred. Please try again.';
+            errorDiv.style.display = "block";
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Update Expense";
+        });
+    });
+    
+    // Hide loader when page is loaded
+    document.getElementById('pageLoader').classList.add('hidden');
+    
+    // Show loader on delete buttons
+    document.querySelectorAll('.btn-danger').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            if (this.onclick && this.onclick.toString().includes('confirm')) {
+                // Wait for confirmation before showing loader
+            }
+        });
+    });
+});
+
 // Enable Bootstrap tooltips
 var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
 var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) })
+
+// Show loader before page unload (navigation)
+window.addEventListener('beforeunload', function() {
+    document.getElementById('pageLoader').classList.remove('hidden');
+    document.querySelector('#pageLoader .loader-text').textContent = 'Loading...';
+});
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

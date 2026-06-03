@@ -1,11 +1,12 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 $username = $_SESSION['username'];
 
 // Get Vehicle ID
@@ -50,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
 
     if ($stmt->execute()) {
+        logActivity($conn, LOG_EDIT_VEHICLE, "Edited vehicle ID: $id - $brand $model ($number_plate)");
         header("Location: vehicle.php");
         exit();
     } else {
@@ -160,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <footer class="text-center py-3 mt-5">
-    <p class="mb-0">© 2025 VisionAngles | Vehicle Management</p>
+    <p class="mb-0">© 2026 VisionAngles | Vehicle Management</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

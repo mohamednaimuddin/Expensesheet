@@ -1,11 +1,16 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
+
+// Log the export
+$export_username = $_GET['username'] ?? 'Unknown';
+logActivity($conn, LOG_EXPORT, "Exported expense report for user: $export_username");
 
 // Get filter values from GET
 $username = $_GET['username'] ?? '';

@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'config.php';
+include 'log_helper.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
@@ -52,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Execute query
     if ($stmt->execute()) {
+        logActivity($conn, LOG_ADD_EXPENSE, "Added labour expense: $amount SAR - $description");
         $_SESSION['success'] = "Labour expense added successfully!";
         header("Location: dashboard_user.php");
         exit();

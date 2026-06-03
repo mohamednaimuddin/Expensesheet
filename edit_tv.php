@@ -1,11 +1,12 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 // Validate TV expense ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
@@ -41,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $update->bind_param("ssssssssdsi", $date, $division, $company, $location, $store, $tv_type, $description, $updated_description, $amount, $region, $id);
     
     if ($update->execute()) {
+        logActivity($conn, 'EDIT_TV', "Edited TV expense ID: $id - $tv_type at $location, Amount: $amount SAR");
         header("Location: tv_report.php?success=1");
         exit();
     } else {

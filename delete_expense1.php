@@ -13,6 +13,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 // GET parameters
 $id = $_GET['id'] ?? '';
@@ -31,7 +32,8 @@ $table_map = [
     'labour_expense' => 'labour_expense',  // corrected key
     'accessories_expense' => 'accessories_expense',
     'tv_expense' => 'tv_expense',
-    'vehicle_expense' => 'vehicle_expense'
+    'vehicle_expense' => 'vehicle_expense',
+    'taxi_expense' => 'taxi_expense'
 ];
 
 $table_key = strtolower($table_param);
@@ -40,7 +42,7 @@ if (!array_key_exists($table_key, $table_map)) die("Invalid table specified.");
 $table = $table_map[$table_key];
 
 // Check if expense exists and is not submitted
-$stmt = $conn->prepare("SELECT submitted FROM $table WHERE id=? AND username=?");
+$stmt = $conn->prepare("SELECT submitted, amount FROM $table WHERE id=? AND username=?");
 if (!$stmt) die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
 
 $stmt->bind_param("is", $id, $username);
@@ -57,6 +59,8 @@ if (!$delete_stmt) die("Prepare failed: (" . $conn->errno . ") " . $conn->error)
 
 $delete_stmt->bind_param("is", $id, $username);
 $delete_stmt->execute();
+
+logActivity($conn, LOG_DELETE_EXPENSE, "Deleted own $table_key ID: $id, Amount: {$row['amount']} SAR");
 
 header("Location: report.php");
 exit();

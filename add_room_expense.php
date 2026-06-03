@@ -2,6 +2,7 @@
 session_start();
 if (!isset($_SESSION['username'])) { header("Location: index.php"); exit(); }
 include 'config.php';
+include 'log_helper.php';
 
 $username = $_SESSION['username'];
 
@@ -25,6 +26,7 @@ $stmt->bind_param("ssssssssss",
 );
 
     if($stmt->execute()){
+        logActivity($conn, LOG_ADD_EXPENSE, "Added room expense: $amount SAR at $location");
         header("Location: dashboard_user.php?success=room");
     } else {
         echo "Error: ".$stmt->error;

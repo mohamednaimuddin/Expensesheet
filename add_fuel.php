@@ -2,6 +2,7 @@
 session_start();
 if (!isset($_SESSION['username'])) { header("Location: index.php"); exit(); }
 include 'config.php';
+include 'log_helper.php';
 
 $username = $_SESSION['username'];
 
@@ -24,6 +25,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $username,$division,$date,$region,$company,$store,$location,$description,$amount,$bill
     );
     if($stmt->execute()){
+        logActivity($conn, LOG_ADD_EXPENSE, "Added fuel expense: $amount SAR at $location");
         header("Location: dashboard_user.php?success=fuel");
     } else {
         echo "Error: ".$stmt->error;

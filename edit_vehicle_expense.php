@@ -1,11 +1,12 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 // Get expense ID
 $expense_id = $_GET['id'] ?? '';
@@ -34,6 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $conn->prepare("UPDATE vehicle_expense SET date=?, region=?, service=?, km_reading=?, description=?, amount=?, bill=? WHERE id=?");
     $stmt->bind_param("sssisdsi", $date, $region, $service, $km_reading, $description, $amount, $bill, $expense_id);
     $stmt->execute();
+    
+    logActivity($conn, LOG_EDIT_EXPENSE, "Edited vehicle expense ID: $expense_id - $service, Amount: $amount SAR, Bill: $bill");
 
     header("Location: vehicle_details.php?id=$vehicle_id");
     exit();

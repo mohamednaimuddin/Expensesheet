@@ -6,6 +6,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'user') {
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 if (!isset($_GET['id']) || !isset($_GET['table'])) {
     die("Invalid request.");
@@ -16,7 +17,7 @@ $table = strtolower($_GET['table']); // force lowercase
 $username = $_SESSION['username'];
 
 // Validate table name to prevent SQL injection
-$valid_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense', 'labour_expense', 'accessories_expense','tv_expense','vehicle_expense'];
+$valid_tables = ['fuel_expense', 'food_expense', 'room_expense', 'other_expense', 'tools_expense', 'labour_expense', 'accessories_expense','tv_expense','vehicle_expense','taxi_expense'];
 if (!in_array($table, $valid_tables)) {
     die("Invalid table.");
 }
@@ -25,6 +26,9 @@ if (!in_array($table, $valid_tables)) {
 $stmt = $conn->prepare("UPDATE $table SET submitted = 1 WHERE id = ? AND username = ?");
 $stmt->bind_param("is", $id, $username);
 $stmt->execute();
+
+// Log the submission
+logActivity($conn, 'SUBMIT_EXPENSE', "Submitted expense ID: $id from table: $table");
 
 header("Location: report.php"); // redirect back to user report
 exit();

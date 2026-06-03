@@ -1,11 +1,12 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 $message = '';
 // Fetch companies for dropdown
 $companies = [];
@@ -43,6 +44,7 @@ $stmt->bind_param("ssssssi", $full_name, $username, $hashed_password, $email, $n
 
 
             if ($stmt->execute()) {
+                logActivity($conn, LOG_ADD_USER, "Added new user: $username ($full_name), Role: $role");
                 $message = "User added successfully!";
             } else {
                 $message = "Error: " . $stmt->error;
@@ -63,6 +65,7 @@ $stmt->bind_param("ssssssi", $full_name, $username, $hashed_password, $email, $n
 <link rel="stylesheet" href="assets/dashboard.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="icon" type="image/png" href="assets\vision.ico">
+<link rel="stylesheet" href="assets/loader.css">
 <style>
     /* Form container */
     .form-container { 
@@ -138,6 +141,16 @@ $stmt->bind_param("ssssssi", $full_name, $username, $hashed_password, $email, $n
 </head>
 <body>
 
+<!-- Page Loader -->
+<div class="page-loader" id="pageLoader">
+    <div class="brand-loader">
+        <img src="assets/visionlogo.jpg" alt="VisionAngles" class="loader-logo">
+        <div class="dots-loader">
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+</div>
+
 <div class="form-container">
     <h2>Add New User/Admin</h2>
     <?php if ($message): ?>
@@ -181,5 +194,15 @@ $stmt->bind_param("ssssssi", $full_name, $username, $hashed_password, $email, $n
     </form>
 </div>
 
+<script>
+// Hide loader when page is fully loaded
+window.addEventListener('load', function() {
+    const loader = document.getElementById('pageLoader');
+    if (loader) {
+        loader.classList.add('hidden');
+        setTimeout(() => { loader.style.display = 'none'; }, 500);
+    }
+});
+</script>
 </body>
 </html>

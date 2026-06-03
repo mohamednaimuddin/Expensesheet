@@ -1,6 +1,6 @@
 <?php 
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
@@ -8,21 +8,19 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 include 'config.php';
 
 // Get filters
-$from_date = $_GET['from_date'] ?? '';
-$to_date = $_GET['to_date'] ?? '';
+$month_filter = $_GET['month'] ?? date('Y-m'); // Default to current month
 $region_filter = $_GET['region'] ?? 'All';
 
-// Fetch all TV expenses function
-function get_tv_expenses($conn, $from_date = '', $to_date = '', $region = 'All') {
+function get_tv_expenses($conn, $month = '', $region = 'All') {
     $sql = "SELECT * FROM tv_expense WHERE submitted=1";
     $types = "";
     $params = [];
 
-    if ($from_date && $to_date) {
-        $sql .= " AND `date` BETWEEN ? AND ?";
-        $types .= "ss";
-        $params[] = $from_date;
-        $params[] = $to_date;
+    if ($month) {
+        // Extract year and month for filtering
+        $sql .= " AND DATE_FORMAT(`date`, '%Y-%m') = ?";
+        $types .= "s";
+        $params[] = $month;
     }
 
     if ($region !== 'All') {
@@ -43,7 +41,7 @@ function get_tv_expenses($conn, $from_date = '', $to_date = '', $region = 'All')
 }
 
 // Fetch TV expenses
-$tv_expenses_result = get_tv_expenses($conn, $from_date, $to_date, $region_filter);
+$tv_expenses_result = get_tv_expenses($conn, $month_filter, $region_filter);
 
 // Calculate total amount
 $total_amount = 0;
@@ -111,8 +109,9 @@ th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; fon
 </div>
 
 <form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <div class="form-group"><input type="date" class="form-control form-control-sm" name="from_date" value="<?= htmlspecialchars($from_date) ?>"></div>
-    <div class="form-group"><input type="date" class="form-control form-control-sm" name="to_date" value="<?= htmlspecialchars($to_date) ?>"></div>
+    <div class="form-group">
+        <input type="month" class="form-control form-control-sm" name="month" value="<?= htmlspecialchars($month_filter) ?>">
+    </div>
     <div class="form-group">
         <select class="form-select form-select-sm" name="region">
             <?php 
@@ -128,7 +127,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; fon
         <button class="btn btn-outline-primary btn-sm" type="submit">Search</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='tv_report.php'">Clear</button>
         <button class="btn btn-outline-success btn-sm" type="button" onclick="window.print()">Print</button>
-        <button type="button" class="btn btn-outline-danger btn-sm" onclick="window.location.href='dashboard_admin.php'">Back</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">Back</button>
     </div>
 </form>
 

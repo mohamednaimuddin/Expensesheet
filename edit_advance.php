@@ -1,11 +1,12 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 if (!isset($_GET['id'])) {
     die("Advance ID not specified!");
@@ -33,6 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $update = $conn->prepare("UPDATE adv_amt SET date = ?, adv_amt = ? WHERE id = ?");
     $update->bind_param("sdi", $adv_date, $adv_amount, $id);
     $update->execute();
+    
+    logActivity($conn, LOG_EDIT_ADVANCE, "Edited advance ID: $id for {$advance['username']}, Amount: $adv_amount SAR");
 
     $return_url = isset($_GET['return']) ? $_GET['return'] : "user_report.php?username=".$advance['username'];
     header("Location: " . $return_url);

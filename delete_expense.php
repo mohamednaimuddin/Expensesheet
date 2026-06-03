@@ -1,11 +1,12 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 if (!isset($_GET['id']) || !isset($_GET['type'])) {
     die("Invalid request!");
@@ -23,7 +24,9 @@ $tables = [
     'Labour'        => 'labour_expense', // ✅ Added Labour
     'Accessories'   => 'accessories_expense',
     'tv'            => 'tv_expense',
-    'Vehicle'       => 'vehicle_expense'
+    'TV'            => 'tv_expense',
+    'Vehicle'       => 'vehicle_expense',
+    'Taxi'          => 'taxi_expense'
 ];
 
 if (!array_key_exists($type, $tables)) {
@@ -45,6 +48,9 @@ $username = $row['username'];
 $del = $conn->prepare("DELETE FROM $table WHERE id=?");
 $del->bind_param("i", $id);
 $del->execute();
+
+// Log the deletion
+logActivity($conn, LOG_DELETE_EXPENSE, "Deleted $type expense ID: $id for user: $username");
 
 header("Location: user_report.php?username=" . urlencode($username));
 exit();

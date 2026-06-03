@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
@@ -56,7 +56,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; }
 <!-- Navbar -->
 <nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #4f46e5, #ec4899);">
   <div class="container">
-    <a class="navbar-brand d-flex align-items-center text-white" href="dashboard_admin.php">
+    <a class="navbar-brand d-flex align-items-center text-white" href="<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>">
       <img src="assets/visionangles.png" alt="Logo" style="height:40px; margin-right:10px;">
       Vision Angles Security EST.
     </a>
@@ -86,7 +86,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; }
         onclick="window.location='export_vehicle_excel.php?search=<?= urlencode($search) ?>'">
         Export
       </button> -->
-      <a href="dashboard_admin.php" class="btn btn-danger btn-sm">Back</a>
+      <a href="<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>" class="btn btn-danger btn-sm">Back</a>
     </div>
   </form>
 

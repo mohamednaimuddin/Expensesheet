@@ -5,6 +5,7 @@ if (!isset($_SESSION['username'])) {
     exit(); 
 }
 include 'config.php';
+include 'log_helper.php';
 
 $username = $_SESSION['username'];
 
@@ -31,6 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     );
 
     if ($stmt->execute()) {
+        logActivity($conn, LOG_ADD_EXPENSE, "Added accessories expense: $amount SAR - $description");
         header("Location: dashboard_user.php?success=accessories");
         exit();
     } else {

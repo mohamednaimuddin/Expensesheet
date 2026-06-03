@@ -6,6 +6,7 @@ if (!isset($_SESSION['username'])) {
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 $username = $_SESSION['username'];
 
@@ -45,6 +46,7 @@ if (isset($_POST['updated_description']) && !empty($_POST['updated_description']
     );
 
     if ($stmt->execute()) {
+        logActivity($conn, LOG_ADD_EXPENSE, "Added TV expense: $amount SAR - $tv_type at $location");
         echo "<script>alert('TV Expense added successfully'); window.location.href='dashboard_user.php';</script>";
     } else {
         echo "Error: " . $stmt->error;

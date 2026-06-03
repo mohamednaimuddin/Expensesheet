@@ -19,7 +19,9 @@ if ($result->num_rows > 0) {
     <title>Expenses Dashboard</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="assets/dashboard.css">
+    <link rel="stylesheet" href="assets/loader.css">
     <link rel="icon" type="image/png" href="assets/vision.ico">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
 
@@ -39,8 +41,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>  
       </select>
 
       <label>Region:</label>
@@ -101,8 +101,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>
@@ -159,8 +157,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>
@@ -248,8 +244,8 @@ if ($result->num_rows > 0) {
     <h2>Add Labour Expense</h2>
     <form action="add_labour_expense.php" method="POST">
       
-    <label>Date:</label>
-    <input type="text" name="date" id="labourDate" placeholder="dd-mm-yyyy" class="datemandatory" required>
+  <label>Date:</label>
+  <input type="date" name="date" id="labourDate" class="datemandatory" required>
 
 
       <label>Division:</label>
@@ -259,8 +255,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>
@@ -322,7 +316,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
         <option value="Recharge">Recharge</option>
         <option value="Other">Other</option>
       </select>
@@ -385,8 +378,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>
-        <option value="Other">Other</option>
       </select>
 
       <label>Region</label>
@@ -448,8 +439,6 @@ if ($result->num_rows > 0) {
         <option value="Project">Project</option>
         <option value="Service">Service</option>
         <option value="Installation">Installation</option>
-        <option value="AMC">AMC</option>  
-        <option value="Other">Other</option>
       </select>
 
       <label>Region:</label>
@@ -574,6 +563,66 @@ if ($result->num_rows > 0) {
   </div>
 </div>
 
+<!-- Taxi Popup -->
+<div class="popup" id="taxiPopup">
+  <div class="popup-content">
+    <span class="close-btn" onclick="closePopup('taxiPopup')">&times;</span>
+    <h2>Add TAXI - Pickup Expense</h2>
+    <form action="add_taxi.php" method="POST">
+      <label>Date:</label>
+      <input type="text" name="date" id="taxiDate" placeholder="dd-mm-yyyy" required class="datemandatory">
+
+      <label>Division:</label>
+      <select name="division" required>
+        <option value="">-- Select Division --</option>
+        <option value="Sales">Sales</option>
+        <option value="Project">Project</option>
+        <option value="Service">Service</option>
+        <option value="Installation">Installation</option>
+      </select>
+
+      <label>Region:</label>
+      <select name="region" required>
+        <option value="">-- Select Region --</option>
+        <option value="Dammam">Dammam</option>
+        <option value="Riyadh">Riyadh</option>
+        <option value="Jeddah">Jeddah</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Company:</label>
+      <select name="company" required>
+        <option value="">-- Select Company --</option>
+        <option value="Redtag">Redtag</option>
+        <option value="Landmark">Landmark</option>
+        <option value="Apparel">Apparel</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Store:</label>
+      <input type="text" name="store" required>
+
+      <label>From:</label>
+      <input type="text" name="from_location" placeholder="Pickup location" required>
+
+      <label>To:</label>
+      <input type="text" name="to_location" placeholder="Drop location" required>
+
+      <label>Amount:</label>
+      <input type="number" step="0.01" name="amount" required>
+
+      <label>Bill:</label>
+      <select name="bill" required>
+        <option value="">-- Select Bill --</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+
+      <button type="submit" class="btn">Save Taxi Expense</button>
+    </form>
+  </div>
+</div>
+
 <script>
 function openPopup(id){ document.getElementById(id).classList.add('active'); }
 function closePopup(id){ document.getElementById(id).classList.remove('active'); }
@@ -685,12 +734,35 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Attach flatpickr to each unique input with default current date
+    const today = new Date();
+    const todayFormatted = ("0" + today.getDate()).slice(-2) + "-" + ("0" + (today.getMonth() + 1)).slice(-2) + "-" + today.getFullYear();
+    const todayYMD = today.getFullYear() + "-" + ("0" + (today.getMonth() + 1)).slice(-2) + "-" + ("0" + today.getDate()).slice(-2);
+    
+    const flatpickrConfig = { 
+        dateFormat: "d-m-Y", 
+        maxDate: "today", 
+        defaultDate: todayFormatted,
+        onChange: function(selectedDates, dateStr, instance) {
+            updateButtonState(instance.input);
+        }
+    };
+    
+    flatpickr("#fuelDate", flatpickrConfig);
+    flatpickr("#foodDate", flatpickrConfig);
+    flatpickr("#roomDate", flatpickrConfig);
+    flatpickr("#otherDate", flatpickrConfig);
+    flatpickr("#toolsDate", flatpickrConfig);
+    flatpickr("#labourDate", flatpickrConfig);
+    flatpickr("#accessoriesDate", flatpickrConfig);
+    flatpickr("#tvDate", flatpickrConfig);
+    flatpickr("#taxiDate", flatpickrConfig);
+    flatpickr("#vehicleDate", { dateFormat: "Y-m-d", maxDate: "today", defaultDate: todayYMD, onChange: function(selectedDates, dateStr, instance) { updateButtonState(instance.input); } });
+
     // Find all date inputs with class 'datemandatory'
     const dateInputs = document.querySelectorAll('.datemandatory');
 
     dateInputs.forEach(input => {
-        updateButtonState(input); // Initial state on load
-
         input.addEventListener('input', () => {
             updateButtonState(input);
         });
@@ -699,17 +771,14 @@ document.addEventListener('DOMContentLoaded', function () {
             updateButtonState(input);
         });
     });
+    
+    // Trigger initial button state update after flatpickr has set values
+    setTimeout(function() {
+        dateInputs.forEach(input => {
+            updateButtonState(input);
+        });
+    }, 100);
 });
-
-    // Attach flatpickr to each unique input
-    flatpickr("#fuelDate", { dateFormat: "d-m-Y", maxDate: "today" });
-flatpickr("#foodDate", { dateFormat: "d-m-Y", maxDate: "today" });
-flatpickr("#roomDate", { dateFormat: "d-m-Y", maxDate: "today" });
-flatpickr("#otherDate", { dateFormat: "d-m-Y", maxDate: "today" });
-flatpickr("#labourDate", { dateFormat: "d-m-Y", maxDate: "today" });
-flatpickr("#accessoriesDate", { dateFormat: "d-m-Y", maxDate: "today" });
-flatpickr("#tvDate", { dateFormat: "d-m-Y", maxDate: "today" });
-flatpickr("#vehicleDate", { dateFormat: "Y-m-d", maxDate: "today" });
 
 
 // Validate that the date is not in the future
@@ -782,7 +851,16 @@ document.addEventListener('DOMContentLoaded', function () {
             otherLocation.disabled = false;
         }
     });
+
+    // Add loader to all popup forms on submit
+    document.querySelectorAll('.popup form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            const loader = document.getElementById('pageLoader');
+            if (loader) {
+                loader.classList.remove('hidden');
+            }
+        });
+    });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </body>
 </html>

@@ -10,8 +10,17 @@ include 'config.php';
 $username = $_SESSION['username'];
 $full_name = $_SESSION['full_name'] ?? $username;
 
-$from_date = $_GET['from_date'] ?? '';
-$to_date = $_GET['to_date'] ?? '';
+// Default to current month if no month filter applied
+if (!isset($_GET['month'])) {
+    $selected_month = date('Y-m'); // Current month in YYYY-MM format
+} else {
+    $selected_month = $_GET['month'];
+}
+
+// Calculate from_date and to_date from selected month
+$from_date = date('Y-m-01', strtotime($selected_month . '-01')); // First day of month
+$to_date   = date('Y-m-t', strtotime($selected_month . '-01'));  // Last day of month
+
 $region_filter = $_GET['region'] ?? 'All';
 
 // Function to fetch expenses per category
@@ -36,7 +45,7 @@ function get_expenses($conn, $table, $from_date, $to_date, $region_filter, $user
         $params[] = $region_filter;
     }
 
-    $sql .= " ORDER BY $date_col DESC";
+    $sql .= " ORDER BY $date_col ASC";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
@@ -47,7 +56,7 @@ function get_expenses($conn, $table, $from_date, $to_date, $region_filter, $user
     return $stmt->get_result();
 }
 
-// Fetch all expense categories including Vehicle
+// Fetch all expense categories including Vehicle and Taxi
 $fuel_expenses   = get_expenses($conn, 'fuel_expense', $from_date, $to_date, $region_filter, $username);
 $food_expenses   = get_expenses($conn, 'food_expense', $from_date, $to_date, $region_filter, $username);
 $room_expenses   = get_expenses($conn, 'room_expense', $from_date, $to_date, $region_filter, $username);
@@ -57,10 +66,11 @@ $labour_expenses = get_expenses($conn, 'labour_expense', $from_date, $to_date, $
 $accessories_expense = get_expenses($conn, 'accessories_expense', $from_date, $to_date, $region_filter, $username);
 $tv_expense      = get_expenses($conn, 'tv_expense', $from_date, $to_date, $region_filter, $username);
 $vehicle_expense = get_expenses($conn, 'vehicle_expense', $from_date, $to_date, $region_filter, $username);
+$taxi_expense    = get_expenses($conn, 'taxi_expense', $from_date, $to_date, $region_filter, $username);
 
 // Total spend
 $total_amount = 0;
-foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses, $accessories_expense, $tv_expense, $vehicle_expense] as $expenses) {
+foreach ([$fuel_expenses, $food_expenses, $room_expenses, $other_expenses, $tools_expenses, $labour_expenses, $accessories_expense, $tv_expense, $vehicle_expense, $taxi_expense] as $expenses) {
     while($row = $expenses->fetch_assoc()) {
         $total_amount += $row['amount'];
     }
@@ -106,6 +116,9 @@ if ($from_date && $to_date) {
 $cd_query->execute();
 $cd_result = $cd_query->get_result();
 $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
+
+
+
 ?>
 
 <!DOCTYPE html>
@@ -145,14 +158,10 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
     <!-- Filters -->
     <form method="get" class="row g-3 mb-4 no-print">
         <div class="col-12 col-md-3">
-            <label class="form-label">From</label>
-            <input type="date" class="form-control" name="from_date" value="<?php echo $from_date; ?>" required>
+            <label class="form-label">Select Month</label>
+            <input type="month" class="form-control" name="month" value="<?php echo $selected_month; ?>" required>
         </div>
-        <div class="col-12 col-md-3">
-            <label class="form-label">To</label>
-            <input type="date" class="form-control" name="to_date" value="<?php echo $to_date; ?>" required>
-        </div>
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-2">
             <label class="form-label">Region</label>
             <select class="form-select" name="region">
                 <option value="All" <?php if($region_filter=='All') echo 'selected'; ?>>All</option>
@@ -161,7 +170,20 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                 <option value="Jeddah" <?php if($region_filter=='Jeddah') echo 'selected'; ?>>Jeddah</option>
             </select>
         </div>
-        <div class="col-12 col-md-3 d-flex flex-wrap align-items-end gap-2">
+        <div class="col-12 col-md-2">
+            <label class="form-label">Type</label>
+            <select class="form-select" name="type">
+                <?php
+                $types = ['All','Fuel','Food','Room','Other','Tools','Labour','Accessories','TV','Vehicle','Taxi'];
+                $selected_type = $_GET['type'] ?? 'All';
+                foreach($types as $type_opt){
+                    $sel = ($selected_type == $type_opt) ? 'selected' : '';
+                    echo "<option value=\"$type_opt\" $sel>$type_opt</option>";
+                }
+                ?>
+            </select>
+        </div>
+        <div class="col-12 col-md-5 d-flex flex-wrap align-items-end gap-2">
             <button type="submit" class="btn btn-primary flex-grow-1 flex-md-grow-0">Search</button>
             <button type="button" onclick="window.location.href='report.php'" class="btn btn-outline-danger flex-grow-1 flex-md-grow-0">Clear Search</button>
             <button type="button" onclick="window.print()" class="btn btn-secondary flex-grow-1 flex-md-grow-0">Print</button>
@@ -173,8 +195,7 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
     <div class="mb-3 d-flex flex-wrap gap-2">
         <span class="me-3"><strong>Username:</strong> <?php echo ucfirst($username); ?></span>
         <span class="me-3"><strong>Region:</strong> <?php echo $region_filter; ?></span>
-        <span class="me-3"><strong>From:</strong> <?php echo $from_date; ?></span>
-        <span><strong>To:</strong> <?php echo $to_date; ?></span>
+        <span><strong>Month:</strong> <?php echo date('F Y', strtotime($selected_month . '-01')); ?></span>
     </div>
 
     <!-- Table -->
@@ -209,12 +230,26 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                     'Accessories'=>$accessories_expense,
                     'TV'=>$tv_expense,
                     'Vehicle'=>$vehicle_expense,
+                    'Taxi'=>$taxi_expense,
                 ] as $type => $expenses) {
                     while($row = $expenses->fetch_assoc()) {
                         $row['type'] = $type;
                         $all_expenses[] = $row;
                     }
                 }
+                // Calculate per-type totals
+$type_totals = [];
+foreach ($all_expenses as $row) {
+    $type = $row['type'];
+    if (!isset($type_totals[$type])) $type_totals[$type] = 0;
+    $type_totals[$type] += $row['amount'];
+}
+$selected_type = $_GET['type'] ?? 'All';
+if($selected_type != 'All'){
+    $all_expenses = array_filter($all_expenses, function($row) use ($selected_type){
+        return $row['type'] == $selected_type;
+    });
+}
 
                 // Sort by date ascending
                 usort($all_expenses, function($a, $b) {
@@ -223,6 +258,16 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
 
                 foreach ($all_expenses as $row) {
                     $is_submitted = $row['submitted'] ?? 0;
+                    
+                    // Handle description based on type
+                    if ($row['type'] === 'Vehicle') {
+                        $description = $row['service'] ?? '';
+                    } elseif ($row['type'] === 'Taxi') {
+                        $description = ($row['from_location'] ?? '') . ' → ' . ($row['to_location'] ?? '');
+                    } else {
+                        $description = $row['description'] ?? '';
+                    }
+                    
                     echo "<tr>
                         <td>{$si}</td>
                         <td>{$row['date']}</td>
@@ -231,7 +276,7 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
                         <td>".($row['company'] ?? '')."</td>
                         <td>".($row['location'] ?? '')."</td>
                         <td>".($row['store'] ?? '')."</td>
-                        <td>".($row['type'] === 'Vehicle' ? $row['service'] : ($row['description'] ?? ''))."</td>
+                        <td>{$description}</td>
 
                         <td>{$row['amount']}</td>
                         <td class='action-buttons'>";
@@ -266,6 +311,20 @@ $total_carry = $cd_result->fetch_assoc()['amount'] ?? 0;
             <div class="p-2 border bg-white text-center"><strong>Balance:</strong> SAR <?php echo number_format(($total_adv + $total_carry) - $total_amount,2); ?></div>
         </div>
     </div>
+
+    <?php if(!isset($_GET['type']) || $_GET['type'] == 'All'): ?>
+    <div class="text-end mt-2" style="font-size:12px;">
+        <strong>Type Summary:</strong>
+        <?php
+        $summary_items = [];
+        foreach($type_totals as $type => $amount) {
+            $summary_items[] = "$type: SAR " . number_format($amount, 2);
+        }
+        echo implode(" | ", $summary_items);
+        ?>
+    </div>
+<?php endif; ?>
+
 
 </div>
 

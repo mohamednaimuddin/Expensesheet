@@ -1,11 +1,12 @@
 <?php 
 session_start();
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
     exit();
 }
 
 include 'config.php';
+include 'log_helper.php';
 
 // Validate request
 if (!isset($_GET['id']) || !isset($_GET['type'])) {
@@ -49,6 +50,9 @@ if ($result->num_rows == 0) {
 }
 $expense = $result->fetch_assoc();
 
+// Check if this is an AJAX request
+$is_ajax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
 // Handle update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -64,18 +68,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($bill)) {
         $error = "Please select Bill option.";
+        if ($is_ajax) {
+            echo json_encode(['success' => false, 'error' => $error]);
+            exit();
+        }
     } else if ($is_vehicle) {
         // Vehicle: only service, amount, and bill editable
         if (empty($service) || !is_numeric($amount)) {
             $error = "Please fill all required fields correctly.";
+            if ($is_ajax) {
+                echo json_encode(['success' => false, 'error' => $error]);
+                exit();
+            }
         } else {
             $update = $conn->prepare("UPDATE vehicle_expense SET service=?, amount=?, bill=? WHERE id=?");
             $update->bind_param("sdsi", $service, $amount, $bill, $id);
             if ($update->execute()) {
+                logActivity($conn, LOG_EDIT_EXPENSE, "Edited vehicle expense ID: $id, Amount: $amount SAR, Bill: $bill");
+                if ($is_ajax) {
+                    echo json_encode(['success' => true, 'redirect' => 'user_report.php?username=' . urlencode($expense['username'])]);
+                    exit();
+                }
                 header("Location: user_report.php?username=" . urlencode($expense['username']));
                 exit();
             } else {
                 $error = "Update failed: " . $conn->error;
+                if ($is_ajax) {
+                    echo json_encode(['success' => false, 'error' => $error]);
+                    exit();
+                }
             }
         }
     } else {
@@ -83,8 +104,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $disable_fields = $is_tools || (!$is_labour && in_array($division, ['Recharge', 'Other']));
         if (empty($date) || empty($amount) || !is_numeric($amount)) {
             $error = "Please fill all required fields correctly.";
+            if ($is_ajax) {
+                echo json_encode(['success' => false, 'error' => $error]);
+                exit();
+            }
         } elseif (!$disable_fields && (empty($division) || empty($company) || empty($location) || empty($store) || empty($description))) {
             $error = "Please fill all required fields correctly.";
+            if ($is_ajax) {
+                echo json_encode(['success' => false, 'error' => $error]);
+                exit();
+            }
         } else {
             if ($disable_fields) {
                 $update = $conn->prepare("UPDATE $table SET date=?, description=?, amount=?, bill=? WHERE id=?");
@@ -94,10 +123,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update->bind_param("ssssssdsi", $date, $division, $company, $location, $store, $description, $amount, $bill, $id);
             }
             if ($update->execute()) {
+                logActivity($conn, LOG_EDIT_EXPENSE, "Edited $type expense ID: $id for {$expense['username']}, Amount: $amount SAR, Bill: $bill");
+                if ($is_ajax) {
+                    echo json_encode(['success' => true, 'redirect' => 'user_report.php?username=' . urlencode($expense['username'])]);
+                    exit();
+                }
                 header("Location: user_report.php?username=" . urlencode($expense['username']));
                 exit();
             } else {
                 $error = "Update failed: " . $conn->error;
+                if ($is_ajax) {
+                    echo json_encode(['success' => false, 'error' => $error]);
+                    exit();
+                }
             }
         }
     }
@@ -206,14 +244,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </select>
         </div>
 
-        <button type="submit" class="btn btn-primary">Update Expense</button>
+        <button type="submit" class="btn btn-primary" id="updateBtn">Update Expense</button>
         <a href="user_report.php?username=<?= urlencode($expense['username']); ?>" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 
 <script>
-<?php if(!$is_vehicle): ?>
+// AJAX form submission to prevent page refresh
 document.addEventListener("DOMContentLoaded", function () {
+    const form = document.querySelector("form");
+    const updateBtn = document.getElementById("updateBtn");
+    
+    form.addEventListener("submit", function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        updateBtn.disabled = true;
+        updateBtn.innerHTML = 'Updating...';
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Use replace to navigate without adding to history (prevents back button issues)
+                window.location.replace(data.redirect);
+            } else {
+                alert(data.error || 'An error occurred');
+                updateBtn.disabled = false;
+                updateBtn.innerHTML = 'Update Expense';
+            }
+        })
+        .catch(error => {
+            // If JSON parse fails, it might be a validation error - submit normally
+            form.submit();
+        });
+    });
+
+<?php if(!$is_vehicle): ?>
     const divisionSelect = document.getElementById("division");
     const companyField = document.getElementById("company");
     const storeField = document.getElementById("store");
@@ -238,8 +311,8 @@ document.addEventListener("DOMContentLoaded", function () {
         divisionSelect.addEventListener("change", toggleFields);
         toggleFields();
     }
-});
 <?php endif; ?>
+});
 </script>
 </body>
 </html>
