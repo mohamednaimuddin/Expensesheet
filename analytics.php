@@ -300,11 +300,17 @@ $month_values = array_map(function($value) {
     }
     .filter-card { padding: 16px; margin: 18px 0; }
     .metric-card { padding: 18px; height: 100%; }
+    .metric-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
     .metric-icon {
         width: 42px; height: 42px;
         display: inline-flex; align-items: center; justify-content: center;
         color: #fff; background: var(--brand); border-radius: 8px;
-        margin-bottom: 14px; font-size: 1.25rem;
+        flex: 0 0 auto; font-size: 1.25rem;
     }
     .metric-label { color: var(--muted); margin: 0; font-weight: 700; font-size: .88rem; text-transform: uppercase; }
     .metric-value { font-size: 1.55rem; font-weight: 800; margin: 3px 0 0; }
@@ -346,49 +352,102 @@ $month_values = array_map(function($value) {
             print-color-adjust: exact !important;
         }
         html, body {
-            width: 297mm;
-            min-height: 210mm;
+            width: auto;
+            height: auto;
+            min-height: 0;
+            margin: 0;
+            overflow: visible;
             background: #fff !important;
         }
-        body { color: #0f172a; font-size: 9px; line-height: 1.2; }
+        body { color: #0f172a; font-size: 10px; line-height: 1.25; }
+        main.page-shell {
+            zoom: 1;
+        }
         .navbar, .filter-card, .no-print { display: none !important; }
         .page-shell {
             max-width: none;
             width: 100%;
             padding: 0;
+            overflow: visible;
+            box-sizing: border-box;
+        }
+        main.page-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            column-gap: 6px;
+            row-gap: 3px;
         }
         .hero {
-            padding: 7px 10px;
-            margin-bottom: 6px;
+            grid-column: 1 / -1;
+            padding: 5px 9px;
+            margin-bottom: 4px;
             box-shadow: none;
             border-color: #cbd5e1;
             background: #f8fafc;
         }
-        .hero h1 { font-size: 18px; }
+        .hero h1 { font-size: 16px; }
         .hero p { display: none; }
         .print-meta {
+            grid-column: 1 / -1;
             display: block;
-            margin: 0 0 7px;
+            margin: 0 0 5px;
             color: #475569;
-            font-size: 9px;
+            font-size: 8.5px;
         }
         .row {
             display: flex !important;
             flex-wrap: wrap !important;
-            --bs-gutter-x: 8px;
-            --bs-gutter-y: 8px;
+            --bs-gutter-x: 6px;
+            --bs-gutter-y: 0;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            margin-top: 0 !important;
+            width: 100% !important;
         }
-        .mb-4 { margin-bottom: 8px !important; }
+        .row > * {
+            margin-top: 0 !important;
+            padding-left: 3px !important;
+            padding-right: 3px !important;
+        }
+        .mb-4 { margin-bottom: 4px !important; }
+        .print-charts {
+            margin-bottom: 0 !important;
+        }
+        .print-metrics {
+            grid-column: 1 / -1;
+        }
         .col-lg-3, .col-md-6 {
             flex: 0 0 25% !important;
             max-width: 25% !important;
         }
-        .print-charts .col-xl-7,
-        .print-charts .col-xl-5,
-        .print-details .col-xl-5,
+        .print-charts,
+        .print-details {
+            display: contents !important;
+        }
+        .print-charts > *,
+        .print-details > * {
+            width: auto !important;
+            max-width: none !important;
+            flex: none !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        .print-charts .col-xl-7 {
+            grid-column: 1;
+            grid-row: 4;
+        }
+        .print-charts .col-xl-5 {
+            grid-column: 2;
+            grid-row: 4;
+        }
+        .print-details .col-xl-5 {
+            grid-column: 1;
+            grid-row: 5;
+        }
         .print-details .col-xl-7 {
-            flex: 0 0 50% !important;
-            max-width: 50% !important;
+            grid-column: 2;
+            grid-row: 5;
+            margin: 0 !important;
         }
         .print-hide {
             display: none !important;
@@ -398,36 +457,51 @@ $month_values = array_map(function($value) {
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             box-sizing: border-box;
-            break-inside: avoid;
-            page-break-inside: avoid;
             background: #fff;
         }
         .metric-card {
-            min-height: 72px;
-            padding: 8px 10px;
+            min-height: 52px;
+            padding: 6px 8px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .metric-head {
+            gap: 5px;
+            margin-bottom: 3px;
         }
         .metric-icon {
-            width: 22px;
-            height: 22px;
-            margin-bottom: 5px;
+            width: 18px;
+            height: 18px;
             border-radius: 4px;
-            font-size: 11px;
+            font-size: 9px;
         }
-        .metric-label { font-size: 8px; }
-        .metric-value { font-size: 14px; }
+        .metric-label { font-size: 7px; }
+        .metric-value { font-size: 12px; }
         .print-charts .chart-card {
-            padding: 10px;
+            padding: 7px 8px;
             min-height: 0;
-            height: 164px;
+            height: 226px;
             display: flex;
             flex-direction: column;
+        }
+        .print-charts .category-share-card {
+            height: 226px;
+        }
+        .print-details {
+            margin-top: 0 !important;
         }
         .print-details .chart-card,
         .print-details .table-card {
             min-height: 0;
-            height: 320px;
-            padding: 10px;
+            height: 330px;
+            padding: 7px 8px;
             overflow: hidden;
+        }
+        .print-details .chart-card {
+            height: 365px;
+        }
+        .print-details .top-spenders-card {
+            height: 330px;
         }
         .print-details .table-card {
             display: flex;
@@ -438,29 +512,40 @@ $month_values = array_map(function($value) {
         }
         .chart-title {
             font-size: 12px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         .print-charts .chart-canvas-box {
             flex: 1;
-            height: 126px !important;
-            min-height: 126px !important;
-            max-height: 126px !important;
+            height: 186px !important;
+            min-height: 186px !important;
+            max-height: 186px !important;
         }
         .print-charts canvas {
             width: 100% !important;
-            height: 126px !important;
-            max-height: 126px !important;
+            height: 186px !important;
+            max-height: 186px !important;
+        }
+        .print-charts .category-share-card .chart-canvas-box {
+            height: 186px !important;
+            min-height: 186px !important;
+            max-height: 186px !important;
+        }
+        .print-charts .category-share-card canvas {
+            height: 186px !important;
+            max-height: 186px !important;
         }
         .category-row {
             grid-template-columns: 1fr auto;
-            gap: 4px 8px;
-            padding: 6px 0;
-            font-size: 9px;
+            gap: 4px 10px;
+            padding: 3.5px 0;
+            font-size: 11px;
         }
         .category-name,
         .category-amount {
             line-height: 1.15;
         }
+        .category-name { gap: 7px; }
+        .category-name i { font-size: 11px; }
         .bar-track { height: 5px; }
         .table-card .p-3 {
             padding: 0 0 7px !important;
@@ -478,11 +563,11 @@ $month_values = array_map(function($value) {
             white-space: nowrap;
         }
         .table {
-            font-size: 9px;
-            line-height: 1.2;
+            font-size: 10.5px;
+            line-height: 1.18;
         }
         .table > :not(caption) > * > * {
-            padding: 6px 4px;
+            padding: 6px 5px;
         }
         .print-details .empty-state {
             padding: 36px 12px;
@@ -516,7 +601,9 @@ $month_values = array_map(function($value) {
             <p>Track spending trends, category mix, advances, and recent expense movement.</p>
         </div>
         <div class="d-flex gap-2 no-print">
-            <button class="btn btn-outline-dark" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print A4</button>
+            <button class="btn btn-outline-dark" type="button" style="pointer-events: none;">
+    <i class="bi bi-printer"></i> Print A4
+</button>
             <a class="btn btn-primary" href="<?= htmlspecialchars($report_url) ?>"><i class="bi bi-table"></i> Expense Report</a>
         </div>
     </section>
@@ -568,29 +655,37 @@ $month_values = array_map(function($value) {
     <div class="row g-3 mb-4 print-metrics">
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon"><i class="bi bi-cash-stack"></i></span>
-                <p class="metric-label">Total Expense</p>
+                <div class="metric-head">
+                    <span class="metric-icon"><i class="bi bi-cash-stack"></i></span>
+                    <p class="metric-label">Total Expense</p>
+                </div>
                 <p class="metric-value">SAR <?= number_format($total_expense, 2) ?></p>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon" style="background:#16a34a"><i class="bi bi-wallet2"></i></span>
-                <p class="metric-label">Total Advance</p>
+                <div class="metric-head">
+                    <span class="metric-icon" style="background:#16a34a"><i class="bi bi-wallet2"></i></span>
+                    <p class="metric-label">Total Advance</p>
+                </div>
                 <p class="metric-value">SAR <?= number_format($total_advance, 2) ?></p>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon" style="background:#0f766e"><i class="bi bi-calculator"></i></span>
-                <p class="metric-label">Balance</p>
+                <div class="metric-head">
+                    <span class="metric-icon" style="background:#0f766e"><i class="bi bi-calculator"></i></span>
+                    <p class="metric-label">Balance</p>
+                </div>
                 <p class="metric-value">SAR <?= number_format($balance, 2) ?></p>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon" style="background:#ca8a04"><i class="bi bi-receipt"></i></span>
-                <p class="metric-label">Records / Pending Bills</p>
+                <div class="metric-head">
+                    <span class="metric-icon" style="background:#ca8a04"><i class="bi bi-receipt"></i></span>
+                    <p class="metric-label">Records / Pending Bills</p>
+                </div>
                 <p class="metric-value"><?= number_format($total_records) ?> / <?= number_format($pending_bills) ?></p>
             </div>
         </div>
@@ -606,7 +701,7 @@ $month_values = array_map(function($value) {
             </div>
         </div>
         <div class="col-xl-5">
-            <div class="chart-card">
+            <div class="chart-card category-share-card">
                 <h5 class="chart-title">Category Share</h5>
                 <div class="chart-canvas-box">
                     <canvas id="categoryChart"></canvas>
@@ -631,7 +726,7 @@ $month_values = array_map(function($value) {
             </div>
         </div>
         <div class="col-xl-7">
-            <div class="table-card">
+            <div class="table-card top-spenders-card">
                 <div class="p-3 border-bottom">
                     <h5 class="chart-title mb-0"><?= $role === 'user' ? 'Recent Expenses' : 'Top Spenders' ?></h5>
                 </div>
@@ -733,8 +828,8 @@ const categoryChart = new Chart(document.getElementById('categoryChart'), {
     }
 });
 window.addEventListener('beforeprint', () => {
-    trendChart.resize(500, 126);
-    categoryChart.resize(500, 126);
+    trendChart.resize(500, 186);
+    categoryChart.resize(500, 186);
 });
 window.addEventListener('afterprint', () => {
     trendChart.resize();
