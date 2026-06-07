@@ -497,7 +497,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             <?php endforeach; ?>
         </select>
     </div>
- <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">Back</button> </div> </form>
+ <a href="<?= htmlspecialchars(($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php') ?>" class="btn btn-danger btn-sm" data-dashboard-back>Back</a> </div> </form>
 
 <div class="print-header d-flex justify-content-between mb-3">
     <div>
@@ -870,14 +870,37 @@ function confirmInvoicePrint(){
 }
 
 let exportInProgress = false;
+
+function getPageLoader() {
+    return document.getElementById('pageLoader');
+}
+
+function hidePageLoader() {
+    const loader = getPageLoader();
+    if (loader) loader.classList.add('hidden');
+}
+
+function showPageLoader(message) {
+    const loader = getPageLoader();
+    if (!loader) return;
+    const loaderText = loader.querySelector('.loader-text');
+    if (loaderText && message) loaderText.textContent = message;
+    loader.classList.remove('hidden');
+}
+
+function goBackToDashboard(url) {
+    showPageLoader('Loading...');
+    window.location.replace(url);
+}
+
 function startExport(url) {
     exportInProgress = true;
-    document.getElementById('pageLoader').classList.add('hidden');
+    hidePageLoader();
     window.location.href = url;
 
     setTimeout(function() {
         exportInProgress = false;
-        document.getElementById('pageLoader').classList.add('hidden');
+        hidePageLoader();
     }, 2000);
 }
 function openCarrydownModal() { document.getElementById("carrydownModal").style.display = "block"; }
@@ -990,8 +1013,7 @@ document.addEventListener("DOMContentLoaded", function() {
         errorDiv.style.display = "none";
         
         // Show loader
-        document.getElementById('pageLoader').classList.remove('hidden');
-        document.querySelector('#pageLoader .loader-text').textContent = 'Updating expense...';
+        showPageLoader('Updating expense...');
         
         const formData = new FormData(form);
         
@@ -1030,7 +1052,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 sessionStorage.setItem('scrollPosition', window.scrollY);
                 location.reload();
             } else {
-                document.getElementById('pageLoader').classList.add('hidden');
+                hidePageLoader();
                 errorDiv.textContent = data.error || 'An error occurred';
                 errorDiv.style.display = "block";
                 submitBtn.disabled = false;
@@ -1038,7 +1060,7 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         })
         .catch(error => {
-            document.getElementById('pageLoader').classList.add('hidden');
+            hidePageLoader();
             errorDiv.textContent = 'An error occurred. Please try again.';
             errorDiv.style.display = "block";
             submitBtn.disabled = false;
@@ -1047,7 +1069,15 @@ document.addEventListener("DOMContentLoaded", function() {
     });
     
     // Hide loader when page is loaded
-    document.getElementById('pageLoader').classList.add('hidden');
+    hidePageLoader();
+
+    const dashboardBack = document.querySelector('[data-dashboard-back]');
+    if (dashboardBack) {
+        dashboardBack.addEventListener('click', function(e) {
+            e.preventDefault();
+            goBackToDashboard(this.href);
+        });
+    }
     
     // Show loader on delete buttons
     document.querySelectorAll('.btn-danger').forEach(function(btn) {
@@ -1063,11 +1093,16 @@ document.addEventListener("DOMContentLoaded", function() {
 var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
 var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) })
 
+// Hide loader when the browser restores this page from history cache.
+window.addEventListener('pageshow', function() {
+    exportInProgress = false;
+    hidePageLoader();
+});
+
 // Show loader before page unload (navigation)
 window.addEventListener('beforeunload', function() {
     if (exportInProgress) return;
-    document.getElementById('pageLoader').classList.remove('hidden');
-    document.querySelector('#pageLoader .loader-text').textContent = 'Loading...';
+    showPageLoader('Loading...');
 });
 </script>
 </body>
