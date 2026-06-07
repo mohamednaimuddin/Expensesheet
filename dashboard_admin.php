@@ -344,14 +344,46 @@ $current_month_label = date('M Y');
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+function getPageLoader() {
+    return document.getElementById('pageLoader');
+}
+
+function hidePageLoader() {
+    const loader = getPageLoader();
+    if (loader) loader.classList.add('hidden');
+}
+
+function showPageLoader() {
+    const loader = getPageLoader();
+    if (loader) loader.classList.remove('hidden');
+}
+
+// Keep the admin dashboard as the browser-back landing page.
+// This prevents older pages like analytics.php or index.php from appearing
+// when Back is pressed repeatedly after returning to the dashboard.
+(function keepBackOnDashboard() {
+    if (!window.history || !window.history.replaceState || !window.history.pushState) {
+        return;
+    }
+
+    const dashboardUrl = window.location.href;
+    window.history.replaceState({ page: 'dashboard_admin' }, '', dashboardUrl);
+    window.history.pushState({ page: 'dashboard_admin' }, '', dashboardUrl);
+
+    window.addEventListener('popstate', function() {
+        hidePageLoader();
+        window.history.pushState({ page: 'dashboard_admin' }, '', dashboardUrl);
+    });
+})();
+
 // Hide loader when page is loaded
 window.addEventListener('load', function() {
-    document.getElementById('pageLoader').classList.add('hidden');
+    hidePageLoader();
 });
 
 // Hide loader when navigating back via browser history (bfcache restore)
 window.addEventListener('pageshow', function(event) {
-    document.getElementById('pageLoader').classList.add('hidden');
+    hidePageLoader();
 });
 
 // Show loader on navigation
@@ -364,7 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
             var target = el.getAttribute('target');
             if (target && target === '_blank') return;
-            document.getElementById('pageLoader').classList.remove('hidden');
+            showPageLoader();
         });
     });
 });
