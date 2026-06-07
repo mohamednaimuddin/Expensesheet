@@ -3,6 +3,29 @@ session_start();
 include "config.php";
 include "log_helper.php";
 
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+function redirectLoggedInUser() {
+    if (empty($_SESSION['role'])) {
+        return;
+    }
+
+    if ($_SESSION['role'] === 'superadmin') {
+        header("Location: dashboard_superadmin.php");
+    } elseif ($_SESSION['role'] === 'admin') {
+        header("Location: dashboard_admin.php");
+    } else {
+        header("Location: dashboard_user.php");
+    }
+    exit();
+}
+
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+    redirectLoggedInUser();
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -19,11 +42,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if (array_key_exists('is_active', $row) && intval($row['is_active']) === 0) {
                 $error = "Your account has been disabled. Please contact your administrator.";
             } else {
-            $_SESSION['username'] = $row['username'];
-            $_SESSION['role'] = $row['role'];
-            $_SESSION['user_id'] = $row['id'];
-            $_SESSION['company_id'] = $row['company_id'] ?? 0;
-            $_SESSION['company_name'] = $row['company_name'] ?? 'N/A';
+                session_regenerate_id(true);
+                $_SESSION['username'] = $row['username'];
+                $_SESSION['role'] = $row['role'];
+                $_SESSION['user_id'] = $row['id'];
+                $_SESSION['company_id'] = $row['company_id'] ?? 0;
+                $_SESSION['company_name'] = $row['company_name'] ?? 'N/A';
             
             // Log login activity
             logActivity($conn, LOG_LOGIN, 'User logged in successfully');
@@ -157,6 +181,12 @@ function togglePassword() {
 // Hide page loader when page is fully loaded
 window.addEventListener('load', function() {
     document.getElementById('pageLoader').classList.add('hidden');
+});
+
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        window.location.reload();
+    }
 });
 
 // Show loader on form submit
