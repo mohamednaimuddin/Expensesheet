@@ -47,6 +47,38 @@ function table_has_column($conn, $table, $column) {
     return $column_cache[$key];
 }
 
+function load_region_options($conn, $expense_tables) {
+    $regions = [];
+    foreach (array_keys($expense_tables) as $table) {
+        if (!table_has_column($conn, $table, 'region')) {
+            continue;
+        }
+        $safe_table = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+        $res = $conn->query("SELECT DISTINCT TRIM(region) AS region_name FROM `$safe_table` WHERE region IS NOT NULL AND TRIM(region) <> ''");
+        if (!$res) {
+            continue;
+        }
+        while ($row = $res->fetch_assoc()) {
+            $region_name = trim($row['region_name'] ?? '');
+            if ($region_name !== '') {
+                $regions[$region_name] = true;
+            }
+        }
+    }
+
+    $preferred_order = ['Riyadh', 'Dammam', 'Jeddah', 'Other'];
+    $ordered = [];
+    foreach ($preferred_order as $region) {
+        if (isset($regions[$region])) {
+            $ordered[] = $region;
+            unset($regions[$region]);
+        }
+    }
+    $remaining = array_keys($regions);
+    natcasesort($remaining);
+    return array_merge($ordered, array_values($remaining));
+}
+
 function bind_and_execute($stmt, $types, $params) {
     if ($types !== '') {
         $refs = [];
@@ -78,6 +110,11 @@ if ($role === 'superadmin') {
     }
 }
 
+$region_options = load_region_options($conn, $expense_tables);
+if ($region_filter !== 'All' && !in_array($region_filter, $region_options, true)) {
+    $region_filter = 'All';
+}
+
 function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $selected_company, $region_filter) {
     $join = '';
     $where = ["e.submitted=1", "e.date BETWEEN ? AND ?"];
@@ -101,7 +138,7 @@ function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $se
     }
 
     if ($region_filter !== 'All' && table_has_column($conn, $table, 'region')) {
-        $where[] = "e.region=?";
+        $where[] = "LOWER(TRIM(e.region))=LOWER(?)";
         $types .= "s";
         $params[] = $region_filter;
     }
@@ -627,7 +664,7 @@ $month_values = array_map(function($value) {
             <div class="col-lg-2 col-md-4">
                 <label class="form-label">Region</label>
                 <select name="region" class="form-select">
-                    <?php foreach (['All', 'Central', 'Eastern', 'Western', 'Northern', 'Southern'] as $region): ?>
+                    <?php foreach (array_merge(['All'], $region_options) as $region): ?>
                         <option value="<?= htmlspecialchars($region) ?>" <?= $region_filter === $region ? 'selected' : '' ?>><?= htmlspecialchars($region) ?></option>
                     <?php endforeach; ?>
                 </select>
