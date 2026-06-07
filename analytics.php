@@ -335,7 +335,218 @@ $month_values = array_map(function($value) {
         border-radius: 8px;
         box-shadow: 0 14px 38px rgba(15,23,42,.08);
     }
-    .filter-card { padding: 16px; margin: 18px 0; }
+    .filter-card {
+        padding: 18px;
+        margin: 18px 0;
+    }
+    .analytics-filter {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+        gap: 14px;
+        align-items: end;
+    }
+    .filter-card.has-company .analytics-filter {
+        grid-template-columns: repeat(4, minmax(170px, 1fr)) auto;
+    }
+    .filter-field {
+        min-width: 0;
+    }
+    .filter-label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 7px;
+        color: #475569;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .filter-control {
+        position: relative;
+    }
+    .filter-control > i {
+        position: absolute;
+        left: 13px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #2563eb;
+        font-size: 1rem;
+        pointer-events: none;
+        z-index: 2;
+    }
+    .filter-control .form-control,
+    .filter-control .form-select {
+        min-height: 46px;
+        padding-left: 40px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        color: #0f172a;
+        background-color: rgba(255,255,255,.92);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+        font-weight: 700;
+    }
+    .filter-control .form-select {
+        padding-right: 42px;
+    }
+    .filter-control .form-control:focus,
+    .filter-control .form-select:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+    }
+    .filter-control .date-display {
+        cursor: pointer;
+    }
+    .date-picker-wrap {
+        position: relative;
+    }
+    .analytics-calendar {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        width: min(316px, calc(100vw - 32px));
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 18px 48px rgba(15,23,42,.18);
+        z-index: 50;
+        display: none;
+    }
+    .analytics-calendar.is-open {
+        display: block;
+    }
+    .calendar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .calendar-selects {
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) 86px;
+        gap: 7px;
+        flex: 1;
+        min-width: 0;
+    }
+    .calendar-selects select {
+        min-height: 34px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background-color: #fff;
+        color: #0f172a;
+        font-weight: 800;
+        padding: 4px 28px 4px 8px;
+    }
+    .calendar-nav {
+        display: flex;
+        gap: 4px;
+    }
+    .calendar-nav button,
+    .calendar-day {
+        border: 0;
+        background: transparent;
+        border-radius: 6px;
+    }
+    .calendar-nav button {
+        width: 34px;
+        height: 34px;
+        color: #334155;
+        font-size: 1.1rem;
+    }
+    .calendar-nav button:hover,
+    .calendar-day:hover {
+        background: #e0ecff;
+        color: #1d4ed8;
+    }
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        text-align: center;
+    }
+    .calendar-weekday {
+        color: #475569;
+        font-size: .78rem;
+        font-weight: 800;
+        padding: 5px 0;
+    }
+    .calendar-day {
+        min-height: 34px;
+        color: #0f172a;
+        font-weight: 700;
+    }
+    .calendar-day.is-muted {
+        color: #94a3b8;
+        font-weight: 600;
+    }
+    .calendar-day.is-today {
+        box-shadow: inset 0 0 0 1px #93c5fd;
+    }
+    .calendar-day.is-selected {
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(37,99,235,.24);
+    }
+    .calendar-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+        padding-top: 9px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .calendar-foot button {
+        border: 0;
+        background: transparent;
+        color: #2563eb;
+        font-weight: 800;
+        padding: 5px 7px;
+        border-radius: 6px;
+    }
+    .calendar-foot button:hover {
+        background: #eff6ff;
+    }
+    .filter-actions {
+        display: grid;
+        grid-template-columns: minmax(116px, 1fr) 46px;
+        gap: 9px;
+    }
+    .filter-actions .btn {
+        min-height: 46px;
+        border-radius: 8px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .filter-reset {
+        width: 46px;
+        padding-left: 0;
+        padding-right: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .filter-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: .84rem;
+        font-weight: 700;
+    }
     .metric-card { padding: 18px; height: 100%; }
     .metric-head {
         display: flex;
@@ -381,6 +592,13 @@ $month_values = array_map(function($value) {
     @media (max-width: 768px) {
         .hero { align-items: flex-start; flex-direction: column; }
         .metric-value { font-size: 1.28rem; }
+        .analytics-filter,
+        .filter-card.has-company .analytics-filter {
+            grid-template-columns: 1fr;
+        }
+        .filter-actions {
+            grid-template-columns: 1fr 46px;
+        }
     }
     @media print {
         @page { size: A4 landscape; margin: 6mm; }
@@ -651,41 +869,62 @@ $month_values = array_map(function($value) {
         | Printed: <?= htmlspecialchars(date('d M Y h:i A')) ?>
     </p>
 
-    <form method="get" class="filter-card">
-        <div class="row g-3 align-items-end">
-            <div class="col-lg-2 col-md-4">
-                <label class="form-label">From</label>
-                <input type="date" name="from_date" class="form-control" value="<?= htmlspecialchars($from_date) ?>">
+    <form method="get" class="filter-card <?= $role === 'superadmin' ? 'has-company' : '' ?>">
+        <div class="analytics-filter">
+            <div class="filter-field">
+                <label class="filter-label" for="from_date_display"><i class="bi bi-calendar-event"></i> From</label>
+                <div class="filter-control date-picker-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="hidden" id="from_date" name="from_date" value="<?= htmlspecialchars($from_date) ?>">
+                    <input type="text" id="from_date_display" class="form-control date-display js-date-picker" value="<?= htmlspecialchars(date('d-m-Y', strtotime($from_date))) ?>" data-target="from_date" inputmode="numeric" placeholder="DD-MM-YYYY" autocomplete="off">
+                </div>
             </div>
-            <div class="col-lg-2 col-md-4">
-                <label class="form-label">To</label>
-                <input type="date" name="to_date" class="form-control" value="<?= htmlspecialchars($to_date) ?>">
+            <div class="filter-field">
+                <label class="filter-label" for="to_date_display"><i class="bi bi-calendar-check"></i> To</label>
+                <div class="filter-control date-picker-wrap">
+                    <i class="bi bi-calendar-range"></i>
+                    <input type="hidden" id="to_date" name="to_date" value="<?= htmlspecialchars($to_date) ?>">
+                    <input type="text" id="to_date_display" class="form-control date-display js-date-picker" value="<?= htmlspecialchars(date('d-m-Y', strtotime($to_date))) ?>" data-target="to_date" inputmode="numeric" placeholder="DD-MM-YYYY" autocomplete="off">
+                </div>
             </div>
-            <div class="col-lg-2 col-md-4">
-                <label class="form-label">Region</label>
-                <select name="region" class="form-select">
-                    <?php foreach (array_merge(['All'], $region_options) as $region): ?>
-                        <option value="<?= htmlspecialchars($region) ?>" <?= $region_filter === $region ? 'selected' : '' ?>><?= htmlspecialchars($region) ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="filter-field">
+                <label class="filter-label" for="region"><i class="bi bi-geo-alt"></i> Region</label>
+                <div class="filter-control">
+                    <i class="bi bi-map"></i>
+                    <select id="region" name="region" class="form-select">
+                        <?php foreach (array_merge(['All'], $region_options) as $region): ?>
+                            <option value="<?= htmlspecialchars($region) ?>" <?= $region_filter === $region ? 'selected' : '' ?>><?= htmlspecialchars($region) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <?php if ($role === 'superadmin'): ?>
-            <div class="col-lg-3 col-md-6">
-                <label class="form-label">Company</label>
-                <select name="company_id" class="form-select">
-                    <option value="All">All Companies</option>
-                    <?php foreach ($companies as $company): ?>
-                        <option value="<?= htmlspecialchars($company['id']) ?>" <?= (string)$selected_company === (string)$company['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($company['company_name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="filter-field">
+                <label class="filter-label" for="company_id"><i class="bi bi-building"></i> Company</label>
+                <div class="filter-control">
+                    <i class="bi bi-buildings"></i>
+                    <select id="company_id" name="company_id" class="form-select">
+                        <option value="All">All Companies</option>
+                        <?php foreach ($companies as $company): ?>
+                            <option value="<?= htmlspecialchars($company['id']) ?>" <?= (string)$selected_company === (string)$company['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($company['company_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <?php endif; ?>
-            <div class="col-lg-3 col-md-6 d-flex gap-2">
-                <button class="btn btn-primary flex-fill" type="submit"><i class="bi bi-funnel"></i> Apply</button>
-                <a class="btn btn-outline-dark" href="analytics.php"><i class="bi bi-arrow-clockwise"></i></a>
+            <div class="filter-actions">
+                <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i> Apply</button>
+                <a class="btn btn-outline-dark filter-reset" href="analytics.php" title="Reset filters" aria-label="Reset filters">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </a>
             </div>
+        </div>
+        <div class="filter-summary">
+            <span class="filter-chip"><i class="bi bi-calendar-week"></i> <?= htmlspecialchars(date('d-m-Y', strtotime($from_date))) ?> to <?= htmlspecialchars(date('d-m-Y', strtotime($to_date))) ?></span>
+            <span class="filter-chip"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($region_filter) ?></span>
+            <span class="filter-chip"><i class="bi bi-diagram-3"></i> <?= htmlspecialchars($selected_company_label) ?></span>
         </div>
     </form>
 
@@ -823,6 +1062,282 @@ $month_values = array_map(function($value) {
     </div>
 </main>
 
+<script>
+(function() {
+    const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    let activePicker = null;
+
+    function pad(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function parseIso(value) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+        if (!match) return new Date();
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+
+    function parseDisplay(value) {
+        const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec((value || '').trim());
+        if (!match) return null;
+        const day = Number(match[1]);
+        const month = Number(match[2]) - 1;
+        const year = Number(match[3]);
+        const date = new Date(year, month, day);
+        if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+            return null;
+        }
+        return date;
+    }
+
+    function toIso(date) {
+        return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+    }
+
+    function toDisplay(date) {
+        return pad(date.getDate()) + '-' + pad(date.getMonth() + 1) + '-' + date.getFullYear();
+    }
+
+    function sameDay(a, b) {
+        return a && b &&
+            a.getFullYear() === b.getFullYear() &&
+            a.getMonth() === b.getMonth() &&
+            a.getDate() === b.getDate();
+    }
+
+    function closeCalendar() {
+        if (!activePicker) return;
+        activePicker.calendar.remove();
+        activePicker = null;
+    }
+
+    function syncTypedDate(input) {
+        const hidden = document.getElementById(input.dataset.target);
+        if (!hidden) return false;
+        const date = parseDisplay(input.value);
+        if (!date) {
+            input.classList.add('is-invalid');
+            return false;
+        }
+        hidden.value = toIso(date);
+        input.value = toDisplay(date);
+        input.classList.remove('is-invalid');
+        return true;
+    }
+
+    function renderCalendar(picker) {
+        const selectedDate = parseIso(picker.hidden.value);
+        const year = picker.viewDate.getFullYear();
+        const month = picker.viewDate.getMonth();
+        const firstOfMonth = new Date(year, month, 1);
+        const startDate = new Date(year, month, 1 - firstOfMonth.getDay());
+        const today = new Date();
+
+        picker.calendar.innerHTML = '';
+
+        const head = document.createElement('div');
+        head.className = 'calendar-head';
+
+        const selects = document.createElement('div');
+        selects.className = 'calendar-selects';
+
+        const monthSelect = document.createElement('select');
+        monthSelect.setAttribute('aria-label', 'Select month');
+        monthSelect.addEventListener('mousedown', function(event) {
+            event.stopPropagation();
+        });
+        monthNames.forEach(function(monthName, index) {
+            const option = document.createElement('option');
+            option.value = String(index);
+            option.textContent = monthName;
+            option.selected = index === month;
+            monthSelect.appendChild(option);
+        });
+        monthSelect.addEventListener('change', function() {
+            picker.viewDate = new Date(year, Number(this.value), 1);
+            renderCalendar(picker);
+        });
+
+        const yearSelect = document.createElement('select');
+        yearSelect.setAttribute('aria-label', 'Select year');
+        yearSelect.addEventListener('mousedown', function(event) {
+            event.stopPropagation();
+        });
+        for (let optionYear = year - 10; optionYear <= year + 10; optionYear++) {
+            const option = document.createElement('option');
+            option.value = String(optionYear);
+            option.textContent = String(optionYear);
+            option.selected = optionYear === year;
+            yearSelect.appendChild(option);
+        }
+        yearSelect.addEventListener('change', function() {
+            picker.viewDate = new Date(Number(this.value), month, 1);
+            renderCalendar(picker);
+        });
+
+        selects.append(monthSelect, yearSelect);
+
+        const nav = document.createElement('div');
+        nav.className = 'calendar-nav';
+
+        const prev = document.createElement('button');
+        prev.type = 'button';
+        prev.setAttribute('aria-label', 'Previous month');
+        prev.innerHTML = '<i class="bi bi-chevron-left"></i>';
+        prev.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.viewDate = new Date(year, month - 1, 1);
+            renderCalendar(picker);
+        });
+
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.setAttribute('aria-label', 'Next month');
+        next.innerHTML = '<i class="bi bi-chevron-right"></i>';
+        next.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.viewDate = new Date(year, month + 1, 1);
+            renderCalendar(picker);
+        });
+
+        nav.append(prev, next);
+        head.append(selects, nav);
+        picker.calendar.appendChild(head);
+
+        const grid = document.createElement('div');
+        grid.className = 'calendar-grid';
+
+        weekdays.forEach(function(day) {
+            const weekday = document.createElement('div');
+            weekday.className = 'calendar-weekday';
+            weekday.textContent = day;
+            grid.appendChild(weekday);
+        });
+
+        for (let i = 0; i < 42; i++) {
+            const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+            const day = document.createElement('button');
+            day.type = 'button';
+            day.className = 'calendar-day';
+            day.textContent = date.getDate();
+            if (date.getMonth() !== month) day.classList.add('is-muted');
+            if (sameDay(date, today)) day.classList.add('is-today');
+            if (sameDay(date, selectedDate)) day.classList.add('is-selected');
+            day.addEventListener('mousedown', function(event) {
+                event.preventDefault();
+                picker.hidden.value = toIso(date);
+                picker.input.value = toDisplay(date);
+                closeCalendar();
+            });
+            grid.appendChild(day);
+        }
+
+        picker.calendar.appendChild(grid);
+
+        const foot = document.createElement('div');
+        foot.className = 'calendar-foot';
+
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.textContent = 'Clear';
+        clear.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.hidden.value = '';
+            picker.input.value = '';
+            closeCalendar();
+        });
+
+        const todayButton = document.createElement('button');
+        todayButton.type = 'button';
+        todayButton.textContent = 'Today';
+        todayButton.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.hidden.value = toIso(today);
+            picker.input.value = toDisplay(today);
+            closeCalendar();
+        });
+
+        foot.append(clear, todayButton);
+        picker.calendar.appendChild(foot);
+    }
+
+    function openCalendar(input) {
+        const hidden = document.getElementById(input.dataset.target);
+        if (!hidden) return;
+        if (activePicker && activePicker.input === input) {
+            return;
+        }
+        if (input.value.trim() !== '') {
+            syncTypedDate(input);
+        }
+        closeCalendar();
+
+        const calendar = document.createElement('div');
+        calendar.className = 'analytics-calendar is-open';
+        const selected = parseIso(hidden.value);
+
+        const picker = {
+            input,
+            hidden,
+            calendar,
+            viewDate: new Date(selected.getFullYear(), selected.getMonth(), 1)
+        };
+
+        activePicker = picker;
+        input.closest('.date-picker-wrap').appendChild(calendar);
+        renderCalendar(picker);
+    }
+
+    document.querySelectorAll('.js-date-picker').forEach(function(input) {
+        input.addEventListener('click', function() {
+            openCalendar(input);
+        });
+        input.addEventListener('focus', function() {
+            openCalendar(input);
+        });
+        input.addEventListener('change', function() {
+            if (input.value.trim() !== '') {
+                syncTypedDate(input);
+            }
+        });
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openCalendar(input);
+            }
+            if (event.key === 'Escape') {
+                closeCalendar();
+            }
+        });
+    });
+
+    const filterForm = document.querySelector('.filter-card');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function(event) {
+            let valid = true;
+            document.querySelectorAll('.js-date-picker').forEach(function(input) {
+                if (input.value.trim() !== '' && !syncTypedDate(input)) {
+                    valid = false;
+                }
+            });
+            if (!valid) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    document.addEventListener('click', function(event) {
+        if (!activePicker) return;
+        if (!activePicker.calendar.contains(event.target) && event.target !== activePicker.input) {
+            closeCalendar();
+        }
+    });
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const moneyTick = value => 'SAR ' + Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
