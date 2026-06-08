@@ -7,6 +7,17 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['user', 'admin', 
 
 include 'config.php';
 
+$conn->query("CREATE TABLE IF NOT EXISTS petro (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    `date` DATE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    created_by VARCHAR(50) NOT NULL,
+    company_id INT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_petro_date (`date`),
+    INDEX idx_petro_company (company_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
 $role = $_SESSION['role'];
 $username = $_SESSION['username'];
 $today = date('Y-m-d');
@@ -146,6 +157,61 @@ function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $se
     return [$join, implode(" AND ", $where), $types, $params];
 }
 
+function build_petro_scope_sql($role, $username, $admin_company_id, $selected_company) {
+    $where = ["p.date BETWEEN ? AND ?"];
+    $types = "ss";
+    $params = [$GLOBALS['from_date'], $GLOBALS['to_date']];
+
+    if ($role === 'user') {
+        $where[] = "p.created_by=?";
+        $types .= "s";
+        $params[] = $username;
+    } elseif ($role === 'admin') {
+        $where[] = "p.company_id=?";
+        $types .= "s";
+        $params[] = $admin_company_id;
+    } elseif ($selected_company !== 'All' && $selected_company !== '') {
+        $where[] = "p.company_id=?";
+        $types .= "s";
+        $params[] = $selected_company;
+    }
+
+    return [implode(" AND ", $where), $types, $params];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_petro'])) {
+    if (!in_array($role, ['admin', 'superadmin'], true)) {
+        die("Not allowed.");
+    }
+
+    $petro_month = trim($_POST['petro_month'] ?? '');
+    $petro_amount = floatval($_POST['petro_amount'] ?? 0);
+
+    if (!preg_match('/^\d{4}-\d{2}$/', $petro_month) || $petro_amount <= 0) {
+        die("Invalid Petro Fuel entry.");
+    }
+
+    $petro_date = $petro_month . '-01';
+    $petro_company_id = null;
+    if ($role === 'admin') {
+        $petro_company_id = $admin_company_id !== '' ? intval($admin_company_id) : null;
+    } elseif ($selected_company !== 'All' && $selected_company !== '') {
+        $petro_company_id = intval($selected_company);
+    }
+
+    if ($petro_company_id === null) {
+        $stmt = $conn->prepare("INSERT INTO petro (`date`, amount, created_by, company_id) VALUES (?, ?, ?, NULL)");
+        $stmt->bind_param("sds", $petro_date, $petro_amount, $username);
+    } else {
+        $stmt = $conn->prepare("INSERT INTO petro (`date`, amount, created_by, company_id) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("sdsi", $petro_date, $petro_amount, $username, $petro_company_id);
+    }
+    $stmt->execute();
+
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
 $category_totals = [];
 $category_counts = [];
 $pending_bills = 0;
@@ -207,6 +273,35 @@ foreach ($expense_tables as $table => $meta) {
         $row['type'] = $meta['label'];
         $recent_expenses[] = $row;
     }
+}
+
+[$petro_where, $petro_types, $petro_params] = build_petro_scope_sql($role, $username, $admin_company_id, $selected_company);
+$stmt = $conn->prepare("SELECT IFNULL(SUM(p.amount),0) AS total, COUNT(*) AS records FROM petro p WHERE $petro_where");
+$res = bind_and_execute($stmt, $petro_types, $petro_params);
+$petro_row = $res->fetch_assoc();
+$petro_total = floatval($petro_row['total'] ?? 0);
+$petro_records = intval($petro_row['records'] ?? 0);
+$fuel_base_total = floatval($category_totals['fuel_expense'] ?? 0);
+$category_totals['fuel_expense'] = ($category_totals['fuel_expense'] ?? 0) + $petro_total;
+$category_counts['fuel_expense'] = ($category_counts['fuel_expense'] ?? 0) + $petro_records;
+$total_expense += $petro_total;
+$total_records += $petro_records;
+
+$stmt = $conn->prepare("SELECT DATE_FORMAT(p.date, '%Y-%m') AS month_key, IFNULL(SUM(p.amount),0) AS total FROM petro p WHERE $petro_where GROUP BY month_key");
+$res = bind_and_execute($stmt, $petro_types, $petro_params);
+while ($row = $res->fetch_assoc()) {
+    if (isset($month_totals[$row['month_key']])) {
+        $month_totals[$row['month_key']] += floatval($row['total']);
+    }
+}
+
+$stmt = $conn->prepare("SELECT p.created_by AS username, 'Petro Fuel' AS description, p.amount, p.date FROM petro p WHERE $petro_where ORDER BY p.date DESC, p.id DESC");
+$res = bind_and_execute($stmt, $petro_types, $petro_params);
+$petro_transactions = [];
+while ($row = $res->fetch_assoc()) {
+    $row['type'] = 'Fuel';
+    $petro_transactions[] = $row;
+    $recent_expenses[] = $row;
 }
 
 arsort($top_users);
@@ -580,8 +675,65 @@ $month_values = array_map(function($value) {
     .category-name { display: flex; align-items: center; gap: 10px; font-weight: 700; }
     .category-name i { color: var(--brand); }
     .category-amount { font-weight: 800; }
+    .category-label-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .btn-petro-inline {
+        min-width: 0;
+        height: 28px;
+        padding: 0 9px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        border: 1px solid rgba(37,99,235,.26);
+        background: #eff6ff;
+        color: #1d4ed8;
+        flex: 0 0 auto;
+        font-size: .78rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .btn-petro-inline:hover {
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(37,99,235,.22);
+    }
+    .btn-petro-view {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        color: #334155;
+    }
+    .btn-petro-view:hover {
+        background: #0f172a;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(15,23,42,.18);
+    }
     .bar-track { grid-column: 1 / -1; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    .bar-stack {
+        display: flex;
+    }
     .bar-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+    .bar-segment {
+        height: 100%;
+        min-width: 0;
+    }
+    .bar-segment:first-child {
+        border-radius: 999px 0 0 999px;
+    }
+    .bar-segment:last-child {
+        border-radius: 0 999px 999px 0;
+    }
+    .bar-segment:only-child {
+        border-radius: 999px;
+    }
+    .bar-segment-only {
+        border-radius: 999px !important;
+    }
     .table-card { overflow: hidden; }
     .table-card .table { margin: 0; }
     .table-card th { color: var(--muted); font-size: .82rem; text-transform: uppercase; }
@@ -589,6 +741,53 @@ $month_values = array_map(function($value) {
     .btn-outline-dark { border-color: #334155; color: #0f172a; }
     .empty-state { color: var(--muted); padding: 28px; text-align: center; }
     .print-meta { display: none; }
+    .petro-modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(15,23,42,.55);
+        z-index: 100000;
+    }
+    .petro-modal.is-open {
+        display: flex;
+    }
+    .petro-dialog {
+        width: min(420px, 100%);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,.7);
+        background: #fff;
+        box-shadow: 0 28px 80px rgba(15,23,42,.28);
+        overflow: hidden;
+    }
+    .petro-dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .petro-dialog-head h5 {
+        margin: 0;
+        font-weight: 800;
+    }
+    .petro-close {
+        border: 0;
+        background: #f1f5f9;
+        color: #334155;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+    }
+    .petro-close:hover {
+        background: #e2e8f0;
+    }
+    .petro-dialog-body {
+        padding: 18px;
+    }
     @media (max-width: 768px) {
         .hero { align-items: flex-start; flex-direction: column; }
         .metric-value { font-size: 1.28rem; }
@@ -993,10 +1192,42 @@ $month_values = array_map(function($value) {
                 <?php $max_category = max($category_totals ?: [1]); ?>
                 <?php foreach ($expense_tables as $table => $meta): ?>
                     <?php $percent = $max_category > 0 ? ($category_totals[$table] / $max_category) * 100 : 0; ?>
+                    <?php
+                        $fuel_segment_width = 0;
+                        $petro_segment_width = 0;
+                        if ($table === 'fuel_expense' && $category_totals[$table] > 0) {
+                            $fuel_segment_width = max(0, min(100, ($fuel_base_total / $category_totals[$table]) * $percent));
+                            $petro_segment_width = max(0, min(100, ($petro_total / $category_totals[$table]) * $percent));
+                        }
+                    ?>
                     <div class="category-row">
-                        <div class="category-name"><i class="bi <?= htmlspecialchars($meta['icon']) ?>"></i> <?= htmlspecialchars($meta['label']) ?></div>
+                        <div class="category-name">
+                            <i class="bi <?= htmlspecialchars($meta['icon']) ?>"></i>
+                            <span class="category-label-actions">
+                                <span><?= htmlspecialchars($meta['label']) ?></span>
+                                <?php if ($table === 'fuel_expense' && in_array($role, ['admin', 'superadmin'], true)): ?>
+                                <button class="btn-petro-inline no-print" type="button" onclick="openPetroModal()" title="Add Petro Fuel" aria-label="Add Petro Fuel">
+                                    Petro
+                                </button>
+                                <button class="btn-petro-inline btn-petro-view no-print" type="button" onclick="openPetroViewModal()" title="View Petro transactions" aria-label="View Petro transactions">
+                                    View Petro
+                                </button>
+                                <?php endif; ?>
+                            </span>
+                        </div>
                         <div class="category-amount">SAR <?= number_format($category_totals[$table], 2) ?></div>
-                        <div class="bar-track"><div class="bar-fill" style="width: <?= round($percent, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div></div>
+                        <?php if ($table === 'fuel_expense'): ?>
+                            <div class="bar-track bar-stack">
+                                <?php if ($fuel_segment_width > 0): ?>
+                                <div class="bar-segment <?= $petro_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Fuel: SAR <?= htmlspecialchars(number_format($fuel_base_total, 2)) ?>" style="width: <?= round($fuel_segment_width, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div>
+                                <?php endif; ?>
+                                <?php if ($petro_segment_width > 0): ?>
+                                <div class="bar-segment <?= $fuel_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Petro: SAR <?= htmlspecialchars(number_format($petro_total, 2)) ?>" style="width: <?= round($petro_segment_width, 2) ?>%; background: #94a3b8"></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="bar-track"><div class="bar-fill" style="width: <?= round($percent, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div></div>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -1062,7 +1293,160 @@ $month_values = array_map(function($value) {
     </div>
 </main>
 
+<div class="petro-modal" id="petroModal" aria-hidden="true">
+    <div class="petro-dialog">
+        <div class="petro-dialog-head">
+            <h5><i class="bi bi-fuel-pump text-primary"></i> Add Petro Fuel</h5>
+            <button type="button" class="petro-close" onclick="closePetroModal()" aria-label="Close Petro Fuel form">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form method="post" class="petro-dialog-body">
+            <input type="hidden" name="add_petro" value="1">
+            <div class="mb-3">
+                <label for="petro_month" class="form-label fw-bold">Month</label>
+                <input type="month" id="petro_month" name="petro_month" class="form-control" value="<?= htmlspecialchars(date('Y-m', strtotime($from_date))) ?>" required>
+            </div>
+            <div class="mb-3">
+                <label for="petro_amount" class="form-label fw-bold">Amount</label>
+                <input type="number" id="petro_amount" name="petro_amount" class="form-control" step="0.01" min="0.01" placeholder="0.00" required>
+            </div>
+            <?php if ($role === 'superadmin'): ?>
+            <p class="text-muted small mb-3">Entry scope: <?= htmlspecialchars($selected_company_label) ?></p>
+            <?php endif; ?>
+            <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-outline-dark" onclick="closePetroModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle"></i> Submit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="petro-modal" id="petroViewModal" aria-hidden="true">
+    <div class="petro-dialog">
+        <div class="petro-dialog-head">
+            <h5><i class="bi bi-list-ul text-primary"></i> Petro Fuel Transactions</h5>
+            <button type="button" class="petro-close" onclick="closePetroViewModal()" aria-label="Close Petro transactions">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="petro-dialog-body">
+            <?php if (!empty($petro_transactions)): ?>
+            <div class="mb-3">
+                <label for="petro_view_month" class="form-label fw-bold">Filter Month</label>
+                <input type="month" id="petro_view_month" class="form-control" value="<?= htmlspecialchars(date('Y-m', strtotime($from_date))) ?>" onchange="filterPetroTransactions()">
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Entered By</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($petro_transactions as $petro): ?>
+                        <tr class="petro-transaction-row" data-month="<?= htmlspecialchars(date('Y-m', strtotime($petro['date']))) ?>" data-amount="<?= htmlspecialchars(floatval($petro['amount'])) ?>">
+                            <td><?= htmlspecialchars(date('d M Y', strtotime($petro['date']))) ?></td>
+                            <td><?= htmlspecialchars($petro['username']) ?></td>
+                            <td class="text-end fw-bold">SAR <?= number_format(floatval($petro['amount']), 2) ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <tr id="petroNoRows" style="display:none;">
+                            <td colspan="3" class="text-center text-muted py-3">No Petro Fuel transactions found for this month.</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="2" class="fw-bold">Total</td>
+                            <td class="text-end fw-bold" id="petroViewTotal">SAR <?= number_format($petro_total, 2) ?></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <?php else: ?>
+            <div class="empty-state py-4">No Petro Fuel transactions found for the selected filters.</div>
+            <?php endif; ?>
+            <div class="d-flex justify-content-end mt-3">
+                <button type="button" class="btn btn-outline-dark" onclick="closePetroViewModal()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+function openPetroModal() {
+    const modal = document.getElementById('petroModal');
+    if (!modal) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    const amount = document.getElementById('petro_amount');
+    if (amount) amount.focus();
+}
+
+function closePetroModal() {
+    const modal = document.getElementById('petroModal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function openPetroViewModal() {
+    const modal = document.getElementById('petroViewModal');
+    if (!modal) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    filterPetroTransactions();
+}
+
+function closePetroViewModal() {
+    const modal = document.getElementById('petroViewModal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function filterPetroTransactions() {
+    const monthInput = document.getElementById('petro_view_month');
+    const selectedMonth = monthInput ? monthInput.value : '';
+    const rows = document.querySelectorAll('.petro-transaction-row');
+    const noRows = document.getElementById('petroNoRows');
+    const totalCell = document.getElementById('petroViewTotal');
+    let total = 0;
+    let visibleCount = 0;
+
+    rows.forEach(function(row) {
+        const show = !selectedMonth || row.dataset.month === selectedMonth;
+        row.style.display = show ? '' : 'none';
+        if (show) {
+            total += Number(row.dataset.amount || 0);
+            visibleCount++;
+        }
+    });
+
+    if (noRows) {
+        noRows.style.display = visibleCount === 0 ? '' : 'none';
+    }
+    if (totalCell) {
+        totalCell.textContent = 'SAR ' + total.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+}
+
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('petroModal');
+    if (modal && event.target === modal) {
+        closePetroModal();
+    }
+    const viewModal = document.getElementById('petroViewModal');
+    if (viewModal && event.target === viewModal) {
+        closePetroViewModal();
+    }
+});
+
 (function() {
     const monthNames = [
         'January', 'February', 'March', 'April', 'May', 'June',
