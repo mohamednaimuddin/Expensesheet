@@ -703,6 +703,9 @@ $month_values = array_map(function($value) {
         color: #fff;
         box-shadow: 0 8px 18px rgba(37,99,235,.22);
     }
+    .btn-petro-inline i {
+        color: currentColor;
+    }
     .btn-petro-view {
         background: #f8fafc;
         border-color: #cbd5e1;
@@ -1207,7 +1210,7 @@ $month_values = array_map(function($value) {
                                 <span><?= htmlspecialchars($meta['label']) ?></span>
                                 <?php if ($table === 'fuel_expense' && in_array($role, ['admin', 'superadmin'], true)): ?>
                                 <button class="btn-petro-inline no-print" type="button" onclick="openPetroModal()" title="Add Petro Fuel" aria-label="Add Petro Fuel">
-                                    Petro
+                                    <i class="bi bi-plus-lg"></i> Petro
                                 </button>
                                 <button class="btn-petro-inline btn-petro-view no-print" type="button" onclick="openPetroViewModal()" title="View Petro transactions" aria-label="View Petro transactions">
                                     View Petro
