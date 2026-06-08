@@ -83,6 +83,33 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
     return $stmt->get_result();
 }
 
+function calculate_carryforward_from_previous_month($conn, $username, $prev_first_day, $prev_last_day, $prev_month) {
+    $tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense','taxi_expense'];
+    $total_prev_expenses = 0.0;
+    foreach ($tables as $table) {
+        $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("sss", $username, $prev_first_day, $prev_last_day);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $total_prev_expenses += $row ? floatval($row['amt']) : 0.0;
+    }
+
+    $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
+    $stmt->bind_param("sss", $username, $prev_first_day, $prev_last_day);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $total_prev_adv = $row ? floatval($row['total_adv']) : 0.0;
+
+    $stmt = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? ORDER BY created_at DESC LIMIT 1");
+    $stmt->bind_param("ss", $username, $prev_month);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $prev_carry = $row ? floatval($row['amount']) : 0.0;
+
+    return ($total_prev_adv + $prev_carry) - $total_prev_expenses;
+}
+
 // Pagination
 $limit = 20;
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int) $_GET['page'] : 1;
@@ -293,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry']))
         $recalc_prev_last = date("Y-m-t", strtotime("$recalc_first_day -1 month"));
         
         // Calculate previous month's expenses
-        $expense_tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
+        $expense_tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense','taxi_expense'];
         $total_prev_exp = 0.0;
         foreach ($expense_tables as $table) {
             $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
@@ -338,31 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry']))
 
 // Auto-insert carrydown if missing
 if (!$carrydown_exists) {
-    $tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
-    $total_prev_expenses = 0.0;
-    foreach ($tables as $table) {
-        $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
-        $stmt->execute();
-        $total_prev_expenses += floatval($stmt->get_result()->fetch_assoc()['amt']);
-    }
-
-    $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
-    $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result->fetch_assoc();
-    $total_prev_adv = $row ? floatval($row['total_adv']) : 0.0;
-
-    $stmt = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? ORDER BY created_at DESC LIMIT 1");
-    $stmt->bind_param("ss", $username, $prev_month);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result->fetch_assoc();
-    $prev_carry = $row ? floatval($row['amount']) : 0.0;
-
-    $last_month_balance = ($total_prev_adv + $prev_carry) - $total_prev_expenses;
+    $last_month_balance = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
 
     $carrydown_desc = "Carryforward from " . date("M Y", strtotime($first_day_prev));
     $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
@@ -371,8 +374,16 @@ if (!$carrydown_exists) {
 
     $carrydown_value = $last_month_balance;
 } else {
-    $carrydown_value = floatval($current_month_carry['amount']);   // <-- FIXED
-    $carrydown_desc  = $current_month_carry['description'];         // <-- FIXED
+    $carrydown_value = floatval($current_month_carry['amount']);
+    $carrydown_desc  = $current_month_carry['description'];
+    $expected_carrydown = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
+
+    if (strpos($carrydown_desc, 'Carryforward from ') === 0 && abs($carrydown_value - $expected_carrydown) >= 0.005) {
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, updated_at=NOW() WHERE id=?");
+        $stmt->bind_param("di", $expected_carrydown, $current_month_carry['id']);
+        $stmt->execute();
+        $carrydown_value = $expected_carrydown;
+    }
 }
 
 // Assign to total_carry for HTML display
