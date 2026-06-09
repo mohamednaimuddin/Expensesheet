@@ -83,6 +83,33 @@ function get_expenses($conn, $table, $username, $from_date = '', $to_date = '', 
     return $stmt->get_result();
 }
 
+function calculate_carryforward_from_previous_month($conn, $username, $prev_first_day, $prev_last_day, $prev_month) {
+    $tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense','taxi_expense'];
+    $total_prev_expenses = 0.0;
+    foreach ($tables as $table) {
+        $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("sss", $username, $prev_first_day, $prev_last_day);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $total_prev_expenses += $row ? floatval($row['amt']) : 0.0;
+    }
+
+    $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
+    $stmt->bind_param("sss", $username, $prev_first_day, $prev_last_day);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $total_prev_adv = $row ? floatval($row['total_adv']) : 0.0;
+
+    $stmt = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? ORDER BY created_at DESC LIMIT 1");
+    $stmt->bind_param("ss", $username, $prev_month);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $prev_carry = $row ? floatval($row['amount']) : 0.0;
+
+    return ($total_prev_adv + $prev_carry) - $total_prev_expenses;
+}
+
 // Pagination
 $limit = 20;
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int) $_GET['page'] : 1;
@@ -260,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_carrydown'])) {
 
     if ($carrydown_exists) {
         // Update existing
-        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, description=?, updated_at=NOW() WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=?");
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, description=? WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=?");
         $stmt->bind_param("dsss", $cd_amount, $cd_desc, $username, $current_month);
     } else {
         // Insert new
@@ -293,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry']))
         $recalc_prev_last = date("Y-m-t", strtotime("$recalc_first_day -1 month"));
         
         // Calculate previous month's expenses
-        $expense_tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
+        $expense_tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense','taxi_expense'];
         $total_prev_exp = 0.0;
         foreach ($expense_tables as $table) {
             $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
@@ -338,31 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry']))
 
 // Auto-insert carrydown if missing
 if (!$carrydown_exists) {
-    $tables = ['fuel_expense','food_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense'];
-    $total_prev_expenses = 0.0;
-    foreach ($tables as $table) {
-        $sql = "SELECT SUM(amount) as amt FROM $table WHERE username=? AND submitted=1 AND date BETWEEN ? AND ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
-        $stmt->execute();
-        $total_prev_expenses += floatval($stmt->get_result()->fetch_assoc()['amt']);
-    }
-
-    $stmt = $conn->prepare("SELECT SUM(adv_amt) as total_adv FROM adv_amt WHERE username=? AND date BETWEEN ? AND ?");
-    $stmt->bind_param("sss", $username, $first_day_prev, $last_day_prev);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result->fetch_assoc();
-    $total_prev_adv = $row ? floatval($row['total_adv']) : 0.0;
-
-    $stmt = $conn->prepare("SELECT amount FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=? ORDER BY created_at DESC LIMIT 1");
-    $stmt->bind_param("ss", $username, $prev_month);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result->fetch_assoc();
-    $prev_carry = $row ? floatval($row['amount']) : 0.0;
-
-    $last_month_balance = ($total_prev_adv + $prev_carry) - $total_prev_expenses;
+    $last_month_balance = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
 
     $carrydown_desc = "Carryforward from " . date("M Y", strtotime($first_day_prev));
     $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
@@ -371,8 +374,16 @@ if (!$carrydown_exists) {
 
     $carrydown_value = $last_month_balance;
 } else {
-    $carrydown_value = floatval($current_month_carry['amount']);   // <-- FIXED
-    $carrydown_desc  = $current_month_carry['description'];         // <-- FIXED
+    $carrydown_value = floatval($current_month_carry['amount']);
+    $carrydown_desc  = $current_month_carry['description'];
+    $expected_carrydown = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
+
+    if (strpos($carrydown_desc, 'Carryforward from ') === 0 && abs($carrydown_value - $expected_carrydown) >= 0.005) {
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=? WHERE id=?");
+        $stmt->bind_param("di", $expected_carrydown, $current_month_carry['id']);
+        $stmt->execute();
+        $carrydown_value = $expected_carrydown;
+    }
 }
 
 // Assign to total_carry for HTML display
@@ -418,35 +429,303 @@ $total_carry = $carrydown_value;
 <link href="assets/vendor/bootstrap-5.0.2/css/bootstrap.min.css" rel="stylesheet">
 <link href="assets/vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 <style>
-.total-spend { background-color: #f2f2f2; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; }
-/* Table general styling */
+/* ── Dashboard-matching glassmorphism variables ── */
+:root {
+    --ink-900: #0f172a;
+    --ink-700: #334155;
+    --ink-500: #64748b;
+    --line:    #e2e8f0;
+    --blue-500: #3b82f6;
+    --blue-600: #2563eb;
+    --cyan-500: #06b6d4;
+    --green-500:#10b981;
+    --green-600:#059669;
+    --rose-500: #f43f5e;
+    --amber-500:#f59e0b;
+    --glass-bg:    rgba(255,255,255,0.68);
+    --glass-bg-2:  rgba(255,255,255,0.88);
+    --glass-brd:   rgba(255,255,255,0.85);
+    --glass-shadow: 0 12px 36px rgba(15,23,42,0.10);
+    --radius-lg: 20px;
+    --radius-md: 14px;
+}
+
+/* ── Body gradient (mirrors admin dashboard) ── */
+body {
+    background:
+        radial-gradient(1100px 700px at 8% -10%, #dbeafe 0%, transparent 60%),
+        radial-gradient(900px 700px at 110% 5%, #ccfbf1 0%, transparent 55%),
+        radial-gradient(900px 700px at 50% 120%, #ede9fe 0%, transparent 55%),
+        linear-gradient(180deg, #f8fbff 0%, #eef3fb 60%, #f5f7fc 100%);
+    background-attachment: fixed;
+}
+
+/* ── Report header card ── */
+.report-header {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-brd);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    box-shadow: var(--glass-shadow);
+    padding: 18px 24px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.report-header h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, #1e3a8a, #06b6d4 70%, #65a30d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.invoice-badge {
+    background: linear-gradient(135deg, #eff6ff, #e0f2fe);
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--blue-600);
+    letter-spacing: 0.5px;
+}
+
+/* ── Glass toolbar ── */
+.report-toolbar {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-brd);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    box-shadow: var(--glass-shadow);
+    padding: 16px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+    justify-content: space-between;
+}
+
+/* Filter group */
+.toolbar-filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    flex: 1 1 auto;
+}
+
+/* Individual filter field */
+.toolbar-field {
+    min-width: 140px;
+}
+.toolbar-field .form-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+.toolbar-field .form-control,
+.toolbar-field .form-select {
+    background: rgba(255,255,255,0.75);
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    color: var(--ink-900);
+    height: 34px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.toolbar-field .form-control:focus,
+.toolbar-field .form-select:focus {
+    border-color: var(--blue-500);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    background: #fff;
+}
+
+/* Search / action button groups */
+.toolbar-search-actions,
+.toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+/* ── Glass buttons ── */
+.btn-glass {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    height: 34px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+}
+.btn-glass-primary {
+    background: linear-gradient(135deg, var(--blue-500), var(--cyan-500));
+    color: #fff;
+    border-color: rgba(255,255,255,0.3);
+    box-shadow: 0 4px 14px rgba(59,130,246,0.30);
+}
+.btn-glass-primary:hover {
+    background: linear-gradient(135deg, var(--blue-600), #0891b2);
+    box-shadow: 0 6px 20px rgba(59,130,246,0.40);
+    transform: translateY(-1px);
+    color: #fff;
+}
+.btn-glass-secondary {
+    background: rgba(255,255,255,0.65);
+    color: var(--ink-700);
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.07);
+}
+.btn-glass-secondary:hover {
+    background: rgba(255,255,255,0.9);
+    border-color: #94a3b8;
+    transform: translateY(-1px);
+    color: var(--ink-900);
+}
+.btn-glass-danger {
+    background: linear-gradient(135deg, #f43f5e, #e11d48);
+    color: #fff;
+    border-color: rgba(255,255,255,0.25);
+    box-shadow: 0 4px 14px rgba(244,63,94,0.28);
+}
+.btn-glass-danger:hover {
+    background: linear-gradient(135deg, #e11d48, #be123c);
+    box-shadow: 0 6px 20px rgba(244,63,94,0.38);
+    transform: translateY(-1px);
+    color: #fff;
+}
+.btn-glass-success {
+    background: linear-gradient(135deg, var(--green-500), #059669);
+    color: #fff;
+    border-color: rgba(255,255,255,0.25);
+    box-shadow: 0 4px 14px rgba(16,185,129,0.28);
+}
+.btn-glass-success:hover {
+    background: linear-gradient(135deg, var(--green-600), #047857);
+    box-shadow: 0 6px 20px rgba(16,185,129,0.38);
+    transform: translateY(-1px);
+    color: #fff;
+}
+
+/* ── Toolbar divider ── */
+.toolbar-divider {
+    width: 1px;
+    min-height: 34px;
+    background: linear-gradient(180deg, transparent, #cbd5e1, transparent);
+    margin: 0 2px;
+    align-self: stretch;
+}
+
+/* ── Print header / footer glass ── */
+.print-header {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-brd);
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: var(--glass-shadow);
+    padding: 14px 20px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.print-header strong { color: var(--ink-700); }
+
+/* ── Table general styling ── */
 .table { border: 2px solid black; border-collapse: collapse; }
 th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wrap: break-word; }
+
+/* ── Print styles ── */
 @media print {
-    .total-summary { font-size: 11px; margin-top: 5px; text-align: right; }
-    body { -webkit-print-color-adjust: exact; color-adjust: exact; margin: 10mm; font-size: 12px; background: #fff; }
-    body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url('assets/vision1.png') no-repeat center center; background-size: 50%; opacity: 0.05; z-index: 9999; pointer-events: none; background-color: #aeb6bd; }
+    body {
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+        margin: 10mm;
+        font-size: 12px;
+        background: #fff !important;
+    }
+    body::before {
+        content: "";
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: url('assets/vision1.png') no-repeat center center;
+        background-size: 50%;
+        opacity: 0.05;
+        z-index: 9999;
+        pointer-events: none;
+        background-color: #aeb6bd;
+    }
+    .report-toolbar, .btn-glass, button, input, select { display: none !important; }
+    .total-summary { font-size: 11px; margin-top: 5px; text-align: right; display: flex; justify-content: flex-end; margin-top: 20px; }
     table { width: 100%; border-collapse: collapse; border: 2px solid black; page-break-inside: auto; }
     thead { display: table-header-group; }
     tfoot { display: table-row-group; }
     tr { page-break-inside: avoid; page-break-after: auto; }
     th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; color: black; }
     th, td { border: 0.5px solid black; padding: 4px 6px; font-size: 11px; text-align: left; word-wrap: break-word; color: black; }
-    button, input, select { display: none !important; }
-    .total-summary { display: flex; justify-content: flex-end; text-align: right; margin-top: 20px; }
-    /* Prevent scrollbars from printing */
     html, body { overflow: visible !important; height: auto !important; }
     .table-responsive { overflow: visible !important; }
-    /* Hide any webkit scrollbars in print context */
     .table-responsive::-webkit-scrollbar { display: none !important; }
+    .report-header, .print-header { background: #fff !important; box-shadow: none !important; border-color: #ddd !important; }
+    .report-header h2 { background: none !important; -webkit-text-fill-color: #000 !important; color: #000 !important; }
 }
-/* Modal styling */
-.modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-.modal-content { background-color: #fff; margin: 5% auto; padding: 20px; border-radius: 5px; width: 80%; max-width: 700px; }
-.close-btn { float: right; font-size: 24px; cursor: pointer; }
+
+/* ── Modal styling ── */
+.modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15,23,42,0.55); backdrop-filter: blur(3px); }
+.modal-content {
+    background: var(--glass-bg-2);
+    border: 1px solid var(--glass-brd);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: 0 24px 64px rgba(15,23,42,0.18);
+    margin: 5% auto;
+    padding: 28px;
+    width: 80%;
+    max-width: 700px;
+}
+.modal-content h4 {
+    font-weight: 700;
+    color: var(--ink-900);
+    margin-bottom: 18px;
+}
+.close-btn { float: right; font-size: 24px; cursor: pointer; color: var(--ink-500); line-height: 1; }
+.close-btn:hover { color: var(--rose-500); }
 .modal table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 .modal table th, .modal table td { border: 0.5px solid #ddd; padding: 8px; text-align: center; }
 .modal table th { background-color: #f2f2f2; }
+
+/* ── Report footer ── */
+.report-footer {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-brd);
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: var(--glass-shadow);
+    padding: 14px 20px;
+    margin-top: 20px;
+}
 </style>
 </head>
 <body>
@@ -460,8 +739,8 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
 </div>
 
 <div class="report-header">
-    <h2>Expense Report</h2>
-    <div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></div>
+    <h2><i class="bi bi-receipt" style="-webkit-text-fill-color:initial; color:#2563eb; margin-right:8px;"></i>Expense Report</h2>
+    <span class="invoice-badge">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></span>
 </div>
 
 <form method="get" class="report-toolbar mb-3">
@@ -469,13 +748,13 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
 
     <div class="toolbar-filter-group">
         <div class="toolbar-field">
-            <label for="month" class="form-label mb-1 small">Month</label>
-            <input type="month" class="form-control form-control-sm" id="month" name="month"
+            <label for="month" class="form-label">Month</label>
+            <input type="month" class="form-control" id="month" name="month"
                    value="<?php echo htmlspecialchars($selected_month); ?>" required>
         </div>
         <div class="toolbar-field">
-            <label for="region" class="form-label mb-1 small">Region</label>
-            <select class="form-select form-select-sm" id="region" name="region">
+            <label for="region" class="form-label">Region</label>
+            <select class="form-select" id="region" name="region">
                 <?php
                 $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
                 foreach ($regions as $region) {
@@ -486,8 +765,8 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             </select>
         </div>
         <div class="toolbar-field">
-            <label for="type" class="form-label mb-1 small">Expense Type</label>
-            <select class="form-select form-select-sm" id="type" name="type">
+            <label for="type" class="form-label">Expense Type</label>
+            <select class="form-select" id="type" name="type">
                 <?php foreach($types as $type):
                     $selected = ($type_filter == $type) ? 'selected' : ''; ?>
                     <option value="<?= $type ?>" <?= $selected ?>><?= $type ?></option>
@@ -495,42 +774,40 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             </select>
         </div>
         <div class="toolbar-search-actions">
-            <button class="btn btn-outline-primary btn-sm" type="submit">
-                <i class="bi bi-search"></i>
-                Search
+            <button class="btn-glass btn-glass-primary" type="submit">
+                <i class="bi bi-search"></i> Search
             </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">
-                <i class="bi bi-x-circle"></i>
-                Clear
+            <button type="button" class="btn-glass btn-glass-secondary" onclick="window.location='user_report.php?username=<?php echo urlencode($username); ?>'">
+                <i class="bi bi-x-circle"></i> Clear
             </button>
         </div>
     </div>
 
+    <div class="toolbar-divider d-none d-md-block"></div>
+
     <div class="toolbar-actions">
-        <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">
-            <i class="bi bi-arrow-left"></i>
-            Back
+        <button type="button" class="btn-glass btn-glass-danger" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">
+            <i class="bi bi-arrow-left"></i> Back
         </button>
-        <button class="btn btn-outline-success btn-sm" type="button" onclick="confirmInvoicePrint()">
-            <i class="bi bi-printer"></i>
-            Print
+        <button class="btn-glass btn-glass-success" type="button" onclick="confirmInvoicePrint()">
+            <i class="bi bi-printer"></i> Print
         </button>
-        <button type="button" class="btn btn-outline-success btn-sm" onclick="startExport('export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>&type=<?php echo urlencode($type_filter); ?>')">
-            <i class="bi bi-file-earmark-excel"></i>
-            Export
+        <button type="button" class="btn-glass btn-glass-success" onclick="startExport('export_excel.php?username=<?php echo urlencode($username); ?>&from_date=<?php echo urlencode($from_date); ?>&to_date=<?php echo urlencode($to_date); ?>&region=<?php echo urlencode($region_filter); ?>&type=<?php echo urlencode($type_filter); ?>')">
+            <i class="bi bi-file-earmark-excel"></i> Export
         </button>
     </div>
 </form>
 
-<div class="print-header d-flex justify-content-between mb-3">
+<div class="print-header mb-3">
     <div>
-        <strong>Username:</strong> <?php echo htmlspecialchars(ucfirst($username)); ?> 
-        | <strong>Region:</strong> <?php echo htmlspecialchars($region_filter); ?><br>
+        <strong>Username:</strong> <?php echo htmlspecialchars(ucfirst($username)); ?>
+        &nbsp;<span style="color:#94a3b8;">|</span>&nbsp;
+        <strong>Region:</strong> <?php echo htmlspecialchars($region_filter); ?><br>
         <strong>Month:</strong> <?php echo date("F Y", strtotime($selected_month . "-01")); ?>
     </div>
-    <div style="text-align:right;">
+    <div style="text-align:right; line-height:1.7;">
         <strong>Brought Down (B/d):</strong> SAR <?php echo number_format($total_carry, 2); ?>
-        <button type="button" class="btn btn-warning btn-sm" onclick="openRecalculateModal()">Re-Calculate</button><br>
+        &nbsp;<button type="button" class="btn-glass btn-glass-secondary" style="padding:3px 10px; height:28px; font-size:0.75rem;" onclick="openRecalculateModal()"><i class="bi bi-arrow-clockwise"></i> Re-Calculate</button><br>
         <strong>Advance:</strong> SAR <?php echo number_format($total_adv, 2); ?>
     </div>
 </div>
@@ -566,7 +843,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
                 <td>SAR <?= number_format($row['amount'], 2) ?></td>
                 <td>
                     <div class="d-flex flex-column flex-md-row gap-1">
-                        <button class="btn btn-warning btn-sm editExpenseBtn" 
+                        <button class="btn-glass btn-glass-secondary editExpenseBtn" style="padding:3px 10px; height:28px; font-size:0.75rem; color:#d97706; border-color:#fcd34d; background:rgba(254,243,199,0.8);"
                             data-id="<?= $row['id'] ?>"
                             data-type="<?= $row['type'] ?>"
                             data-date="<?= $row['date'] ?>"
@@ -579,11 +856,11 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
                             data-bill="<?= htmlspecialchars($row['bill'] ?? '') ?>"
                             data-service="<?= htmlspecialchars($row['service'] ?? '') ?>"
                             data-from_location="<?= htmlspecialchars($row['from_location'] ?? '') ?>"
-                            data-to_location="<?= htmlspecialchars($row['to_location'] ?? '') ?>">Edit</button>
+                            data-to_location="<?= htmlspecialchars($row['to_location'] ?? '') ?>"><i class="bi bi-pencil-fill"></i> Edit</button>
                         <?php if($row['type'] === 'TV'): ?>
-    <button class="btn btn-danger btn-sm" onclick="if(confirm('Are you sure?')) window.location='delete_tv.php?id=<?= $row['id'] ?>&username=<?= urlencode($username) ?>'">Delete</button>
+    <button class="btn-glass btn-glass-danger" style="padding:3px 10px; height:28px; font-size:0.75rem;" onclick="if(confirm('Are you sure?')) window.location='delete_tv.php?id=<?= $row['id'] ?>&username=<?= urlencode($username) ?>'"><i class="bi bi-trash3-fill"></i> Delete</button>
 <?php else: ?>
-    <button class="btn btn-danger btn-sm" onclick="if(confirm('Are you sure?')) window.location='delete_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'">Delete</button>
+    <button class="btn-glass btn-glass-danger" style="padding:3px 10px; height:28px; font-size:0.75rem;" onclick="if(confirm('Are you sure?')) window.location='delete_expense.php?id=<?= $row['id'] ?>&type=<?= $row['type'] ?>'"><i class="bi bi-trash3-fill"></i> Delete</button>
 <?php endif; ?>
                         <span><?= htmlspecialchars($row['remark'] ?? '') ?></span>
                     </div>
@@ -689,8 +966,10 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
 
 </div>
 
-<div style="text-align:right; margin-top:10px;">
-    <button onclick="window.location='manage_advance.php?username=<?= urlencode($username) ?>&total_expense=<?= urlencode($total_amount) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>'">Manage Advances</button>
+<div style="text-align:right; margin-top:12px;">
+    <button class="btn-glass btn-glass-primary" onclick="window.location='manage_advance.php?username=<?= urlencode($username) ?>&total_expense=<?= urlencode($total_amount) ?>&from_date=<?= urlencode($from_date) ?>&to_date=<?= urlencode($to_date) ?>&region=<?= urlencode($region_filter) ?>'">
+        <i class="bi bi-cash-stack"></i> Manage Advances
+    </button>
 </div>
 
 <div class="report-footer">
@@ -715,8 +994,8 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
             <label for="cd_desc" class="form-label">Description</label>
             <textarea name="cd_desc" id="cd_desc" class="form-control" rows="3" required><?= $current_month_carry['description'] ?? '' ?></textarea>
         </div>
-        <button type="submit" class="btn btn-success"><?= $carrydown_exists ? 'Update' : 'Save' ?></button>
-        <button type="button" class="btn btn-secondary" onclick="closeCarrydownModal()">Cancel</button>
+        <button type="submit" class="btn-glass btn-glass-success"><i class="bi bi-check-circle"></i> <?= $carrydown_exists ? 'Update' : 'Save' ?></button>
+        <button type="button" class="btn-glass btn-glass-secondary" onclick="closeCarrydownModal()"><i class="bi bi-x"></i> Cancel</button>
     </form>
   </div>
 </div>
@@ -846,8 +1125,8 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
         
         <div id="editExpenseError" class="alert alert-danger" style="display:none;"></div>
         
-        <button type="submit" class="btn btn-primary" id="editExpenseSubmitBtn">Update Expense</button>
-        <button type="button" class="btn btn-secondary" onclick="closeEditExpenseModal()">Cancel</button>
+        <button type="submit" class="btn-glass btn-glass-primary" id="editExpenseSubmitBtn"><i class="bi bi-pencil-square"></i> Update Expense</button>
+        <button type="button" class="btn-glass btn-glass-secondary" onclick="closeEditExpenseModal()"><i class="bi bi-x"></i> Cancel</button>
     </form>
   </div>
 </div>
@@ -860,8 +1139,8 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     <p>Do you want to recalculate the carrydown? This will delete the current carrydown and recalculate it based on previous data.</p>
     <form method="post">
         <input type="hidden" name="delete_prev_carry" value="1">
-        <button type="submit" class="btn btn-danger">Yes, Recalculate</button>
-        <button type="button" class="btn btn-secondary" onclick="closeRecalculateModal()">Cancel</button>
+        <button type="submit" class="btn-glass btn-glass-danger"><i class="bi bi-arrow-clockwise"></i> Yes, Recalculate</button>
+        <button type="button" class="btn-glass btn-glass-secondary" onclick="closeRecalculateModal()"><i class="bi bi-x"></i> Cancel</button>
     </form>
   </div>
 </div>
@@ -893,14 +1172,37 @@ function confirmInvoicePrint(){
 }
 
 let exportInProgress = false;
+
+function getPageLoader() {
+    return document.getElementById('pageLoader');
+}
+
+function hidePageLoader() {
+    const loader = getPageLoader();
+    if (loader) loader.classList.add('hidden');
+}
+
+function showPageLoader(message) {
+    const loader = getPageLoader();
+    if (!loader) return;
+    const loaderText = loader.querySelector('.loader-text');
+    if (loaderText && message) loaderText.textContent = message;
+    loader.classList.remove('hidden');
+}
+
+function goBackToDashboard(url) {
+    showPageLoader('Loading...');
+    window.location.replace(url);
+}
+
 function startExport(url) {
     exportInProgress = true;
-    document.getElementById('pageLoader').classList.add('hidden');
+    hidePageLoader();
     window.location.href = url;
 
     setTimeout(function() {
         exportInProgress = false;
-        document.getElementById('pageLoader').classList.add('hidden');
+        hidePageLoader();
     }, 2000);
 }
 function openCarrydownModal() { document.getElementById("carrydownModal").style.display = "block"; }
@@ -1013,8 +1315,7 @@ document.addEventListener("DOMContentLoaded", function() {
         errorDiv.style.display = "none";
         
         // Show loader
-        document.getElementById('pageLoader').classList.remove('hidden');
-        document.querySelector('#pageLoader .loader-text').textContent = 'Updating expense...';
+        showPageLoader('Updating expense...');
         
         const formData = new FormData(form);
         
@@ -1053,7 +1354,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 sessionStorage.setItem('scrollPosition', window.scrollY);
                 location.reload();
             } else {
-                document.getElementById('pageLoader').classList.add('hidden');
+                hidePageLoader();
                 errorDiv.textContent = data.error || 'An error occurred';
                 errorDiv.style.display = "block";
                 submitBtn.disabled = false;
@@ -1061,7 +1362,7 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         })
         .catch(error => {
-            document.getElementById('pageLoader').classList.add('hidden');
+            hidePageLoader();
             errorDiv.textContent = 'An error occurred. Please try again.';
             errorDiv.style.display = "block";
             submitBtn.disabled = false;
@@ -1070,7 +1371,15 @@ document.addEventListener("DOMContentLoaded", function() {
     });
     
     // Hide loader when page is loaded
-    document.getElementById('pageLoader').classList.add('hidden');
+    hidePageLoader();
+
+    const dashboardBack = document.querySelector('[data-dashboard-back]');
+    if (dashboardBack) {
+        dashboardBack.addEventListener('click', function(e) {
+            e.preventDefault();
+            goBackToDashboard(this.href);
+        });
+    }
     
     // Show loader on delete buttons
     document.querySelectorAll('.btn-danger').forEach(function(btn) {
@@ -1086,11 +1395,16 @@ document.addEventListener("DOMContentLoaded", function() {
 var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
 var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) })
 
+// Hide loader when the browser restores this page from history cache.
+window.addEventListener('pageshow', function() {
+    exportInProgress = false;
+    hidePageLoader();
+});
+
 // Show loader before page unload (navigation)
 window.addEventListener('beforeunload', function() {
     if (exportInProgress) return;
-    document.getElementById('pageLoader').classList.remove('hidden');
-    document.querySelector('#pageLoader .loader-text').textContent = 'Loading...';
+    showPageLoader('Loading...');
 });
 </script>
 </body>

@@ -7,6 +7,17 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['user', 'admin', 
 
 include 'config.php';
 
+$conn->query("CREATE TABLE IF NOT EXISTS petro (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    `date` DATE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    created_by VARCHAR(50) NOT NULL,
+    company_id INT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_petro_date (`date`),
+    INDEX idx_petro_company (company_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
 $role = $_SESSION['role'];
 $username = $_SESSION['username'];
 $today = date('Y-m-d');
@@ -47,6 +58,38 @@ function table_has_column($conn, $table, $column) {
     return $column_cache[$key];
 }
 
+function load_region_options($conn, $expense_tables) {
+    $regions = [];
+    foreach (array_keys($expense_tables) as $table) {
+        if (!table_has_column($conn, $table, 'region')) {
+            continue;
+        }
+        $safe_table = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+        $res = $conn->query("SELECT DISTINCT TRIM(region) AS region_name FROM `$safe_table` WHERE region IS NOT NULL AND TRIM(region) <> ''");
+        if (!$res) {
+            continue;
+        }
+        while ($row = $res->fetch_assoc()) {
+            $region_name = trim($row['region_name'] ?? '');
+            if ($region_name !== '') {
+                $regions[$region_name] = true;
+            }
+        }
+    }
+
+    $preferred_order = ['Riyadh', 'Dammam', 'Jeddah', 'Other'];
+    $ordered = [];
+    foreach ($preferred_order as $region) {
+        if (isset($regions[$region])) {
+            $ordered[] = $region;
+            unset($regions[$region]);
+        }
+    }
+    $remaining = array_keys($regions);
+    natcasesort($remaining);
+    return array_merge($ordered, array_values($remaining));
+}
+
 function bind_and_execute($stmt, $types, $params) {
     if ($types !== '') {
         $refs = [];
@@ -78,6 +121,11 @@ if ($role === 'superadmin') {
     }
 }
 
+$region_options = load_region_options($conn, $expense_tables);
+if ($region_filter !== 'All' && !in_array($region_filter, $region_options, true)) {
+    $region_filter = 'All';
+}
+
 function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $selected_company, $region_filter) {
     $join = '';
     $where = ["e.submitted=1", "e.date BETWEEN ? AND ?"];
@@ -101,12 +149,99 @@ function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $se
     }
 
     if ($region_filter !== 'All' && table_has_column($conn, $table, 'region')) {
-        $where[] = "e.region=?";
+        $where[] = "LOWER(TRIM(e.region))=LOWER(?)";
         $types .= "s";
         $params[] = $region_filter;
     }
 
     return [$join, implode(" AND ", $where), $types, $params];
+}
+
+function build_petro_scope_sql($role, $username, $admin_company_id, $selected_company) {
+    $where = ["p.date BETWEEN ? AND ?"];
+    $types = "ss";
+    $params = [$GLOBALS['from_date'], $GLOBALS['to_date']];
+
+    if ($role === 'user') {
+        $where[] = "p.created_by=?";
+        $types .= "s";
+        $params[] = $username;
+    } elseif ($role === 'admin') {
+        $where[] = "p.company_id=?";
+        $types .= "s";
+        $params[] = $admin_company_id;
+    } elseif ($selected_company !== 'All' && $selected_company !== '') {
+        $where[] = "p.company_id=?";
+        $types .= "s";
+        $params[] = $selected_company;
+    }
+
+    return [implode(" AND ", $where), $types, $params];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_petro'])) {
+    if (!in_array($role, ['admin', 'superadmin'], true)) {
+        die("Not allowed.");
+    }
+
+    $petro_month = trim($_POST['petro_month'] ?? '');
+    $petro_amount = floatval($_POST['petro_amount'] ?? 0);
+
+    if (!preg_match('/^\d{4}-\d{2}$/', $petro_month) || $petro_amount <= 0) {
+        die("Invalid Petro Fuel entry.");
+    }
+
+    $petro_date = $petro_month . '-01';
+    $petro_company_id = null;
+    if ($role === 'admin') {
+        $petro_company_id = $admin_company_id !== '' ? intval($admin_company_id) : null;
+    } elseif ($selected_company !== 'All' && $selected_company !== '') {
+        $petro_company_id = intval($selected_company);
+    }
+
+    if ($petro_company_id === null) {
+        $stmt = $conn->prepare("INSERT INTO petro (`date`, amount, created_by, company_id) VALUES (?, ?, ?, NULL)");
+        $stmt->bind_param("sds", $petro_date, $petro_amount, $username);
+    } else {
+        $stmt = $conn->prepare("INSERT INTO petro (`date`, amount, created_by, company_id) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("sdsi", $petro_date, $petro_amount, $username, $petro_company_id);
+    }
+    $stmt->execute();
+
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['edit_petro']) || isset($_POST['delete_petro']))) {
+    if (!in_array($role, ['admin', 'superadmin'], true)) {
+        die("Not allowed.");
+    }
+
+    $petro_id = intval($_POST['petro_id'] ?? 0);
+    if ($petro_id <= 0) {
+        die("Invalid Petro Fuel transaction.");
+    }
+
+    if (isset($_POST['delete_petro'])) {
+        $stmt = $conn->prepare("DELETE FROM petro WHERE id=?");
+        $stmt->bind_param("i", $petro_id);
+        $stmt->execute();
+    } else {
+        $petro_month = trim($_POST['petro_month'] ?? '');
+        $petro_amount = floatval($_POST['petro_amount'] ?? 0);
+
+        if (!preg_match('/^\d{4}-\d{2}$/', $petro_month) || $petro_amount <= 0) {
+            die("Invalid Petro Fuel entry.");
+        }
+
+        $petro_date = $petro_month . '-01';
+        $stmt = $conn->prepare("UPDATE petro SET `date`=?, amount=? WHERE id=?");
+        $stmt->bind_param("sdi", $petro_date, $petro_amount, $petro_id);
+        $stmt->execute();
+    }
+
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
 }
 
 $category_totals = [];
@@ -170,6 +305,35 @@ foreach ($expense_tables as $table => $meta) {
         $row['type'] = $meta['label'];
         $recent_expenses[] = $row;
     }
+}
+
+[$petro_where, $petro_types, $petro_params] = build_petro_scope_sql($role, $username, $admin_company_id, $selected_company);
+$stmt = $conn->prepare("SELECT IFNULL(SUM(p.amount),0) AS total, COUNT(*) AS records FROM petro p WHERE $petro_where");
+$res = bind_and_execute($stmt, $petro_types, $petro_params);
+$petro_row = $res->fetch_assoc();
+$petro_total = floatval($petro_row['total'] ?? 0);
+$petro_records = intval($petro_row['records'] ?? 0);
+$fuel_base_total = floatval($category_totals['fuel_expense'] ?? 0);
+$category_totals['fuel_expense'] = ($category_totals['fuel_expense'] ?? 0) + $petro_total;
+$category_counts['fuel_expense'] = ($category_counts['fuel_expense'] ?? 0) + $petro_records;
+$total_expense += $petro_total;
+$total_records += $petro_records;
+
+$stmt = $conn->prepare("SELECT DATE_FORMAT(p.date, '%Y-%m') AS month_key, IFNULL(SUM(p.amount),0) AS total FROM petro p WHERE $petro_where GROUP BY month_key");
+$res = bind_and_execute($stmt, $petro_types, $petro_params);
+while ($row = $res->fetch_assoc()) {
+    if (isset($month_totals[$row['month_key']])) {
+        $month_totals[$row['month_key']] += floatval($row['total']);
+    }
+}
+
+$stmt = $conn->prepare("SELECT p.id, p.created_by AS username, 'Petro Fuel' AS description, p.amount, p.date FROM petro p WHERE $petro_where ORDER BY p.date DESC, p.id DESC");
+$res = bind_and_execute($stmt, $petro_types, $petro_params);
+$petro_transactions = [];
+while ($row = $res->fetch_assoc()) {
+    $row['type'] = 'Fuel';
+    $petro_transactions[] = $row;
+    $recent_expenses[] = $row;
 }
 
 arsort($top_users);
@@ -298,13 +462,230 @@ $month_values = array_map(function($value) {
         border-radius: 8px;
         box-shadow: 0 14px 38px rgba(15,23,42,.08);
     }
-    .filter-card { padding: 16px; margin: 18px 0; }
+    .filter-card {
+        padding: 18px;
+        margin: 18px 0;
+    }
+    .analytics-filter {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+        gap: 14px;
+        align-items: end;
+    }
+    .filter-card.has-company .analytics-filter {
+        grid-template-columns: repeat(4, minmax(170px, 1fr)) auto;
+    }
+    .filter-field {
+        min-width: 0;
+    }
+    .filter-label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 7px;
+        color: #475569;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .filter-control {
+        position: relative;
+    }
+    .filter-control > i {
+        position: absolute;
+        left: 13px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #2563eb;
+        font-size: 1rem;
+        pointer-events: none;
+        z-index: 2;
+    }
+    .filter-control .form-control,
+    .filter-control .form-select {
+        min-height: 46px;
+        padding-left: 40px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        color: #0f172a;
+        background-color: rgba(255,255,255,.92);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+        font-weight: 700;
+    }
+    .filter-control .form-select {
+        padding-right: 42px;
+    }
+    .filter-control .form-control:focus,
+    .filter-control .form-select:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+    }
+    .filter-control .date-display {
+        cursor: pointer;
+    }
+    .date-picker-wrap {
+        position: relative;
+    }
+    .analytics-calendar {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        width: min(316px, calc(100vw - 32px));
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 18px 48px rgba(15,23,42,.18);
+        z-index: 50;
+        display: none;
+    }
+    .analytics-calendar.is-open {
+        display: block;
+    }
+    .calendar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .calendar-selects {
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) 86px;
+        gap: 7px;
+        flex: 1;
+        min-width: 0;
+    }
+    .calendar-selects select {
+        min-height: 34px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background-color: #fff;
+        color: #0f172a;
+        font-weight: 800;
+        padding: 4px 28px 4px 8px;
+    }
+    .calendar-nav {
+        display: flex;
+        gap: 4px;
+    }
+    .calendar-nav button,
+    .calendar-day {
+        border: 0;
+        background: transparent;
+        border-radius: 6px;
+    }
+    .calendar-nav button {
+        width: 34px;
+        height: 34px;
+        color: #334155;
+        font-size: 1.1rem;
+    }
+    .calendar-nav button:hover,
+    .calendar-day:hover {
+        background: #e0ecff;
+        color: #1d4ed8;
+    }
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        text-align: center;
+    }
+    .calendar-weekday {
+        color: #475569;
+        font-size: .78rem;
+        font-weight: 800;
+        padding: 5px 0;
+    }
+    .calendar-day {
+        min-height: 34px;
+        color: #0f172a;
+        font-weight: 700;
+    }
+    .calendar-day.is-muted {
+        color: #94a3b8;
+        font-weight: 600;
+    }
+    .calendar-day.is-today {
+        box-shadow: inset 0 0 0 1px #93c5fd;
+    }
+    .calendar-day.is-selected {
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(37,99,235,.24);
+    }
+    .calendar-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+        padding-top: 9px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .calendar-foot button {
+        border: 0;
+        background: transparent;
+        color: #2563eb;
+        font-weight: 800;
+        padding: 5px 7px;
+        border-radius: 6px;
+    }
+    .calendar-foot button:hover {
+        background: #eff6ff;
+    }
+    .filter-actions {
+        display: grid;
+        grid-template-columns: minmax(116px, 1fr) 46px;
+        gap: 9px;
+    }
+    .filter-actions .btn {
+        min-height: 46px;
+        border-radius: 8px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .filter-reset {
+        width: 46px;
+        padding-left: 0;
+        padding-right: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .filter-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: .84rem;
+        font-weight: 700;
+    }
     .metric-card { padding: 18px; height: 100%; }
+    .metric-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
     .metric-icon {
         width: 42px; height: 42px;
         display: inline-flex; align-items: center; justify-content: center;
         color: #fff; background: var(--brand); border-radius: 8px;
-        margin-bottom: 14px; font-size: 1.25rem;
+        flex: 0 0 auto; font-size: 1.25rem;
     }
     .metric-label { color: var(--muted); margin: 0; font-weight: 700; font-size: .88rem; text-transform: uppercase; }
     .metric-value { font-size: 1.55rem; font-weight: 800; margin: 3px 0 0; }
@@ -326,8 +707,68 @@ $month_values = array_map(function($value) {
     .category-name { display: flex; align-items: center; gap: 10px; font-weight: 700; }
     .category-name i { color: var(--brand); }
     .category-amount { font-weight: 800; }
+    .category-label-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .btn-petro-inline {
+        min-width: 0;
+        height: 28px;
+        padding: 0 9px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        border: 1px solid rgba(37,99,235,.26);
+        background: #eff6ff;
+        color: #1d4ed8;
+        flex: 0 0 auto;
+        font-size: .78rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .btn-petro-inline:hover {
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(37,99,235,.22);
+    }
+    .btn-petro-inline i {
+        color: currentColor;
+    }
+    .btn-petro-view {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        color: #334155;
+    }
+    .btn-petro-view:hover {
+        background: #0f172a;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(15,23,42,.18);
+    }
     .bar-track { grid-column: 1 / -1; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    .bar-stack {
+        display: flex;
+    }
     .bar-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+    .bar-segment {
+        height: 100%;
+        min-width: 0;
+    }
+    .bar-segment:first-child {
+        border-radius: 999px 0 0 999px;
+    }
+    .bar-segment:last-child {
+        border-radius: 0 999px 999px 0;
+    }
+    .bar-segment:only-child {
+        border-radius: 999px;
+    }
+    .bar-segment-only {
+        border-radius: 999px !important;
+    }
     .table-card { overflow: hidden; }
     .table-card .table { margin: 0; }
     .table-card th { color: var(--muted); font-size: .82rem; text-transform: uppercase; }
@@ -335,9 +776,66 @@ $month_values = array_map(function($value) {
     .btn-outline-dark { border-color: #334155; color: #0f172a; }
     .empty-state { color: var(--muted); padding: 28px; text-align: center; }
     .print-meta { display: none; }
+    .petro-modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(15,23,42,.55);
+        z-index: 100000;
+    }
+    .petro-modal.is-open {
+        display: flex;
+    }
+    .petro-dialog {
+        width: min(420px, 100%);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,.7);
+        background: #fff;
+        box-shadow: 0 28px 80px rgba(15,23,42,.28);
+        overflow: hidden;
+    }
+    .petro-dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .petro-dialog-head h5 {
+        margin: 0;
+        font-weight: 800;
+    }
+    .petro-close {
+        border: 0;
+        background: #f1f5f9;
+        color: #334155;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+    }
+    .petro-close:hover {
+        background: #e2e8f0;
+    }
+    .petro-dialog-body {
+        padding: 18px;
+    }
+    .petro-dialog-wide {
+        width: min(620px, 100%);
+    }
     @media (max-width: 768px) {
         .hero { align-items: flex-start; flex-direction: column; }
         .metric-value { font-size: 1.28rem; }
+        .analytics-filter,
+        .filter-card.has-company .analytics-filter {
+            grid-template-columns: 1fr;
+        }
+        .filter-actions {
+            grid-template-columns: 1fr 46px;
+        }
     }
     @media print {
         @page { size: A4 landscape; margin: 6mm; }
@@ -346,49 +844,102 @@ $month_values = array_map(function($value) {
             print-color-adjust: exact !important;
         }
         html, body {
-            width: 297mm;
-            min-height: 210mm;
+            width: auto;
+            height: auto;
+            min-height: 0;
+            margin: 0;
+            overflow: visible;
             background: #fff !important;
         }
-        body { color: #0f172a; font-size: 9px; line-height: 1.2; }
+        body { color: #0f172a; font-size: 10px; line-height: 1.25; }
+        main.page-shell {
+            zoom: 1;
+        }
         .navbar, .filter-card, .no-print { display: none !important; }
         .page-shell {
             max-width: none;
             width: 100%;
             padding: 0;
+            overflow: visible;
+            box-sizing: border-box;
+        }
+        main.page-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            column-gap: 6px;
+            row-gap: 3px;
         }
         .hero {
-            padding: 7px 10px;
-            margin-bottom: 6px;
+            grid-column: 1 / -1;
+            padding: 5px 9px;
+            margin-bottom: 4px;
             box-shadow: none;
             border-color: #cbd5e1;
             background: #f8fafc;
         }
-        .hero h1 { font-size: 18px; }
+        .hero h1 { font-size: 16px; }
         .hero p { display: none; }
         .print-meta {
+            grid-column: 1 / -1;
             display: block;
-            margin: 0 0 7px;
+            margin: 0 0 5px;
             color: #475569;
-            font-size: 9px;
+            font-size: 8.5px;
         }
         .row {
             display: flex !important;
             flex-wrap: wrap !important;
-            --bs-gutter-x: 8px;
-            --bs-gutter-y: 8px;
+            --bs-gutter-x: 6px;
+            --bs-gutter-y: 0;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            margin-top: 0 !important;
+            width: 100% !important;
         }
-        .mb-4 { margin-bottom: 8px !important; }
+        .row > * {
+            margin-top: 0 !important;
+            padding-left: 3px !important;
+            padding-right: 3px !important;
+        }
+        .mb-4 { margin-bottom: 4px !important; }
+        .print-charts {
+            margin-bottom: 0 !important;
+        }
+        .print-metrics {
+            grid-column: 1 / -1;
+        }
         .col-lg-3, .col-md-6 {
             flex: 0 0 25% !important;
             max-width: 25% !important;
         }
-        .print-charts .col-xl-7,
-        .print-charts .col-xl-5,
-        .print-details .col-xl-5,
+        .print-charts,
+        .print-details {
+            display: contents !important;
+        }
+        .print-charts > *,
+        .print-details > * {
+            width: auto !important;
+            max-width: none !important;
+            flex: none !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        .print-charts .col-xl-7 {
+            grid-column: 1;
+            grid-row: 4;
+        }
+        .print-charts .col-xl-5 {
+            grid-column: 2;
+            grid-row: 4;
+        }
+        .print-details .col-xl-5 {
+            grid-column: 1;
+            grid-row: 5;
+        }
         .print-details .col-xl-7 {
-            flex: 0 0 50% !important;
-            max-width: 50% !important;
+            grid-column: 2;
+            grid-row: 5;
+            margin: 0 !important;
         }
         .print-hide {
             display: none !important;
@@ -398,36 +949,51 @@ $month_values = array_map(function($value) {
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             box-sizing: border-box;
-            break-inside: avoid;
-            page-break-inside: avoid;
             background: #fff;
         }
         .metric-card {
-            min-height: 72px;
-            padding: 8px 10px;
+            min-height: 52px;
+            padding: 6px 8px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .metric-head {
+            gap: 5px;
+            margin-bottom: 3px;
         }
         .metric-icon {
-            width: 22px;
-            height: 22px;
-            margin-bottom: 5px;
+            width: 18px;
+            height: 18px;
             border-radius: 4px;
-            font-size: 11px;
+            font-size: 9px;
         }
-        .metric-label { font-size: 8px; }
-        .metric-value { font-size: 14px; }
+        .metric-label { font-size: 7px; }
+        .metric-value { font-size: 12px; }
         .print-charts .chart-card {
-            padding: 10px;
+            padding: 7px 8px;
             min-height: 0;
-            height: 164px;
+            height: 226px;
             display: flex;
             flex-direction: column;
+        }
+        .print-charts .category-share-card {
+            height: 226px;
+        }
+        .print-details {
+            margin-top: 0 !important;
         }
         .print-details .chart-card,
         .print-details .table-card {
             min-height: 0;
-            height: 320px;
-            padding: 10px;
+            height: 330px;
+            padding: 7px 8px;
             overflow: hidden;
+        }
+        .print-details .chart-card {
+            height: 365px;
+        }
+        .print-details .top-spenders-card {
+            height: 330px;
         }
         .print-details .table-card {
             display: flex;
@@ -438,29 +1004,40 @@ $month_values = array_map(function($value) {
         }
         .chart-title {
             font-size: 12px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         .print-charts .chart-canvas-box {
             flex: 1;
-            height: 126px !important;
-            min-height: 126px !important;
-            max-height: 126px !important;
+            height: 186px !important;
+            min-height: 186px !important;
+            max-height: 186px !important;
         }
         .print-charts canvas {
             width: 100% !important;
-            height: 126px !important;
-            max-height: 126px !important;
+            height: 186px !important;
+            max-height: 186px !important;
+        }
+        .print-charts .category-share-card .chart-canvas-box {
+            height: 186px !important;
+            min-height: 186px !important;
+            max-height: 186px !important;
+        }
+        .print-charts .category-share-card canvas {
+            height: 186px !important;
+            max-height: 186px !important;
         }
         .category-row {
             grid-template-columns: 1fr auto;
-            gap: 4px 8px;
-            padding: 6px 0;
-            font-size: 9px;
+            gap: 4px 10px;
+            padding: 3.5px 0;
+            font-size: 11px;
         }
         .category-name,
         .category-amount {
             line-height: 1.15;
         }
+        .category-name { gap: 7px; }
+        .category-name i { font-size: 11px; }
         .bar-track { height: 5px; }
         .table-card .p-3 {
             padding: 0 0 7px !important;
@@ -478,11 +1055,11 @@ $month_values = array_map(function($value) {
             white-space: nowrap;
         }
         .table {
-            font-size: 9px;
-            line-height: 1.2;
+            font-size: 10.5px;
+            line-height: 1.18;
         }
         .table > :not(caption) > * > * {
-            padding: 6px 4px;
+            padding: 6px 5px;
         }
         .print-details .empty-state {
             padding: 36px 12px;
@@ -516,7 +1093,9 @@ $month_values = array_map(function($value) {
             <p>Track spending trends, category mix, advances, and recent expense movement.</p>
         </div>
         <div class="d-flex gap-2 no-print">
-            <button class="btn btn-outline-dark" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print A4</button>
+            <button class="btn btn-outline-dark" type="button" style="pointer-events: none;">
+    <i class="bi bi-printer"></i> Print A4
+</button>
             <a class="btn btn-primary" href="<?= htmlspecialchars($report_url) ?>"><i class="bi bi-table"></i> Expense Report</a>
         </div>
     </section>
@@ -527,70 +1106,99 @@ $month_values = array_map(function($value) {
         | Printed: <?= htmlspecialchars(date('d M Y h:i A')) ?>
     </p>
 
-    <form method="get" class="filter-card">
-        <div class="row g-3 align-items-end">
-            <div class="col-lg-2 col-md-4">
-                <label class="form-label">From</label>
-                <input type="date" name="from_date" class="form-control" value="<?= htmlspecialchars($from_date) ?>">
+    <form method="get" class="filter-card <?= $role === 'superadmin' ? 'has-company' : '' ?>">
+        <div class="analytics-filter">
+            <div class="filter-field">
+                <label class="filter-label" for="from_date_display"><i class="bi bi-calendar-event"></i> From</label>
+                <div class="filter-control date-picker-wrap">
+                    <i class="bi bi-calendar3"></i>
+                    <input type="hidden" id="from_date" name="from_date" value="<?= htmlspecialchars($from_date) ?>">
+                    <input type="text" id="from_date_display" class="form-control date-display js-date-picker" value="<?= htmlspecialchars(date('d-m-Y', strtotime($from_date))) ?>" data-target="from_date" inputmode="numeric" placeholder="DD-MM-YYYY" autocomplete="off">
+                </div>
             </div>
-            <div class="col-lg-2 col-md-4">
-                <label class="form-label">To</label>
-                <input type="date" name="to_date" class="form-control" value="<?= htmlspecialchars($to_date) ?>">
+            <div class="filter-field">
+                <label class="filter-label" for="to_date_display"><i class="bi bi-calendar-check"></i> To</label>
+                <div class="filter-control date-picker-wrap">
+                    <i class="bi bi-calendar-range"></i>
+                    <input type="hidden" id="to_date" name="to_date" value="<?= htmlspecialchars($to_date) ?>">
+                    <input type="text" id="to_date_display" class="form-control date-display js-date-picker" value="<?= htmlspecialchars(date('d-m-Y', strtotime($to_date))) ?>" data-target="to_date" inputmode="numeric" placeholder="DD-MM-YYYY" autocomplete="off">
+                </div>
             </div>
-            <div class="col-lg-2 col-md-4">
-                <label class="form-label">Region</label>
-                <select name="region" class="form-select">
-                    <?php foreach (['All', 'Central', 'Eastern', 'Western', 'Northern', 'Southern'] as $region): ?>
-                        <option value="<?= htmlspecialchars($region) ?>" <?= $region_filter === $region ? 'selected' : '' ?>><?= htmlspecialchars($region) ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="filter-field">
+                <label class="filter-label" for="region"><i class="bi bi-geo-alt"></i> Region</label>
+                <div class="filter-control">
+                    <i class="bi bi-map"></i>
+                    <select id="region" name="region" class="form-select">
+                        <?php foreach (array_merge(['All'], $region_options) as $region): ?>
+                            <option value="<?= htmlspecialchars($region) ?>" <?= $region_filter === $region ? 'selected' : '' ?>><?= htmlspecialchars($region) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <?php if ($role === 'superadmin'): ?>
-            <div class="col-lg-3 col-md-6">
-                <label class="form-label">Company</label>
-                <select name="company_id" class="form-select">
-                    <option value="All">All Companies</option>
-                    <?php foreach ($companies as $company): ?>
-                        <option value="<?= htmlspecialchars($company['id']) ?>" <?= (string)$selected_company === (string)$company['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($company['company_name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="filter-field">
+                <label class="filter-label" for="company_id"><i class="bi bi-building"></i> Company</label>
+                <div class="filter-control">
+                    <i class="bi bi-buildings"></i>
+                    <select id="company_id" name="company_id" class="form-select">
+                        <option value="All">All Companies</option>
+                        <?php foreach ($companies as $company): ?>
+                            <option value="<?= htmlspecialchars($company['id']) ?>" <?= (string)$selected_company === (string)$company['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($company['company_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <?php endif; ?>
-            <div class="col-lg-3 col-md-6 d-flex gap-2">
-                <button class="btn btn-primary flex-fill" type="submit"><i class="bi bi-funnel"></i> Apply</button>
-                <a class="btn btn-outline-dark" href="analytics.php"><i class="bi bi-arrow-clockwise"></i></a>
+            <div class="filter-actions">
+                <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i> Apply</button>
+                <a class="btn btn-outline-dark filter-reset" href="analytics.php" title="Reset filters" aria-label="Reset filters">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </a>
             </div>
+        </div>
+        <div class="filter-summary">
+            <span class="filter-chip"><i class="bi bi-calendar-week"></i> <?= htmlspecialchars(date('d-m-Y', strtotime($from_date))) ?> to <?= htmlspecialchars(date('d-m-Y', strtotime($to_date))) ?></span>
+            <span class="filter-chip"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($region_filter) ?></span>
+            <span class="filter-chip"><i class="bi bi-diagram-3"></i> <?= htmlspecialchars($selected_company_label) ?></span>
         </div>
     </form>
 
     <div class="row g-3 mb-4 print-metrics">
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon"><i class="bi bi-cash-stack"></i></span>
-                <p class="metric-label">Total Expense</p>
+                <div class="metric-head">
+                    <span class="metric-icon"><i class="bi bi-cash-stack"></i></span>
+                    <p class="metric-label">Total Expense</p>
+                </div>
                 <p class="metric-value">SAR <?= number_format($total_expense, 2) ?></p>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon" style="background:#16a34a"><i class="bi bi-wallet2"></i></span>
-                <p class="metric-label">Total Advance</p>
+                <div class="metric-head">
+                    <span class="metric-icon" style="background:#16a34a"><i class="bi bi-wallet2"></i></span>
+                    <p class="metric-label">Total Advance</p>
+                </div>
                 <p class="metric-value">SAR <?= number_format($total_advance, 2) ?></p>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon" style="background:#0f766e"><i class="bi bi-calculator"></i></span>
-                <p class="metric-label">Balance</p>
+                <div class="metric-head">
+                    <span class="metric-icon" style="background:#0f766e"><i class="bi bi-calculator"></i></span>
+                    <p class="metric-label">Balance</p>
+                </div>
                 <p class="metric-value">SAR <?= number_format($balance, 2) ?></p>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div class="metric-card">
-                <span class="metric-icon" style="background:#ca8a04"><i class="bi bi-receipt"></i></span>
-                <p class="metric-label">Records / Pending Bills</p>
+                <div class="metric-head">
+                    <span class="metric-icon" style="background:#ca8a04"><i class="bi bi-receipt"></i></span>
+                    <p class="metric-label">Records / Pending Bills</p>
+                </div>
                 <p class="metric-value"><?= number_format($total_records) ?> / <?= number_format($pending_bills) ?></p>
             </div>
         </div>
@@ -606,7 +1214,7 @@ $month_values = array_map(function($value) {
             </div>
         </div>
         <div class="col-xl-5">
-            <div class="chart-card">
+            <div class="chart-card category-share-card">
                 <h5 class="chart-title">Category Share</h5>
                 <div class="chart-canvas-box">
                     <canvas id="categoryChart"></canvas>
@@ -622,16 +1230,48 @@ $month_values = array_map(function($value) {
                 <?php $max_category = max($category_totals ?: [1]); ?>
                 <?php foreach ($expense_tables as $table => $meta): ?>
                     <?php $percent = $max_category > 0 ? ($category_totals[$table] / $max_category) * 100 : 0; ?>
+                    <?php
+                        $fuel_segment_width = 0;
+                        $petro_segment_width = 0;
+                        if ($table === 'fuel_expense' && $category_totals[$table] > 0) {
+                            $fuel_segment_width = max(0, min(100, ($fuel_base_total / $category_totals[$table]) * $percent));
+                            $petro_segment_width = max(0, min(100, ($petro_total / $category_totals[$table]) * $percent));
+                        }
+                    ?>
                     <div class="category-row">
-                        <div class="category-name"><i class="bi <?= htmlspecialchars($meta['icon']) ?>"></i> <?= htmlspecialchars($meta['label']) ?></div>
+                        <div class="category-name">
+                            <i class="bi <?= htmlspecialchars($meta['icon']) ?>"></i>
+                            <span class="category-label-actions">
+                                <span><?= htmlspecialchars($meta['label']) ?></span>
+                                <?php if ($table === 'fuel_expense' && in_array($role, ['admin', 'superadmin'], true)): ?>
+                                <button class="btn-petro-inline no-print" type="button" onclick="openPetroModal()" title="Add Petro Fuel" aria-label="Add Petro Fuel">
+                                    <i class="bi bi-plus-lg"></i> Petro
+                                </button>
+                                <button class="btn-petro-inline btn-petro-view no-print" type="button" onclick="openPetroViewModal()" title="View Petro transactions" aria-label="View Petro transactions">
+                                    View Petro
+                                </button>
+                                <?php endif; ?>
+                            </span>
+                        </div>
                         <div class="category-amount">SAR <?= number_format($category_totals[$table], 2) ?></div>
-                        <div class="bar-track"><div class="bar-fill" style="width: <?= round($percent, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div></div>
+                        <?php if ($table === 'fuel_expense'): ?>
+                            <div class="bar-track bar-stack">
+                                <?php if ($fuel_segment_width > 0): ?>
+                                <div class="bar-segment <?= $petro_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Fuel: SAR <?= htmlspecialchars(number_format($fuel_base_total, 2)) ?>" style="width: <?= round($fuel_segment_width, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div>
+                                <?php endif; ?>
+                                <?php if ($petro_segment_width > 0): ?>
+                                <div class="bar-segment <?= $fuel_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Petro: SAR <?= htmlspecialchars(number_format($petro_total, 2)) ?>" style="width: <?= round($petro_segment_width, 2) ?>%; background: #94a3b8"></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="bar-track"><div class="bar-fill" style="width: <?= round($percent, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div></div>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
         </div>
         <div class="col-xl-7">
-            <div class="table-card">
+            <div class="table-card top-spenders-card">
                 <div class="p-3 border-bottom">
                     <h5 class="chart-title mb-0"><?= $role === 'user' ? 'Recent Expenses' : 'Top Spenders' ?></h5>
                 </div>
@@ -691,6 +1331,493 @@ $month_values = array_map(function($value) {
     </div>
 </main>
 
+<div class="petro-modal" id="petroModal" aria-hidden="true">
+    <div class="petro-dialog">
+        <div class="petro-dialog-head">
+            <h5><i class="bi bi-fuel-pump text-primary"></i> Add Petro Fuel</h5>
+            <button type="button" class="petro-close" onclick="closePetroModal()" aria-label="Close Petro Fuel form">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form method="post" class="petro-dialog-body">
+            <input type="hidden" name="add_petro" value="1">
+            <div class="mb-3">
+                <label for="petro_month" class="form-label fw-bold">Month</label>
+                <input type="month" id="petro_month" name="petro_month" class="form-control" value="<?= htmlspecialchars(date('Y-m', strtotime($from_date))) ?>" required>
+            </div>
+            <div class="mb-3">
+                <label for="petro_amount" class="form-label fw-bold">Amount</label>
+                <input type="number" id="petro_amount" name="petro_amount" class="form-control" step="0.01" min="0.01" placeholder="0.00" required>
+            </div>
+            <?php if ($role === 'superadmin'): ?>
+            <p class="text-muted small mb-3">Entry scope: <?= htmlspecialchars($selected_company_label) ?></p>
+            <?php endif; ?>
+            <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-outline-dark" onclick="closePetroModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle"></i> Submit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="petro-modal" id="petroViewModal" aria-hidden="true">
+    <div class="petro-dialog petro-dialog-wide">
+        <div class="petro-dialog-head">
+            <h5><i class="bi bi-list-ul text-primary"></i> Petro Fuel Transactions</h5>
+            <button type="button" class="petro-close" onclick="closePetroViewModal()" aria-label="Close Petro transactions">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="petro-dialog-body">
+            <?php if (!empty($petro_transactions)): ?>
+            <div class="mb-3">
+                <label for="petro_view_month" class="form-label fw-bold">Filter Month</label>
+                <input type="month" id="petro_view_month" class="form-control" value="<?= htmlspecialchars(date('Y-m', strtotime($from_date))) ?>" onchange="filterPetroTransactions()">
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Entered By</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($petro_transactions as $petro): ?>
+                        <tr class="petro-transaction-row" data-month="<?= htmlspecialchars(date('Y-m', strtotime($petro['date']))) ?>" data-amount="<?= htmlspecialchars(floatval($petro['amount'])) ?>">
+                            <td><?= htmlspecialchars(date('d M Y', strtotime($petro['date']))) ?></td>
+                            <td><?= htmlspecialchars($petro['username']) ?></td>
+                            <td class="text-end fw-bold">SAR <?= number_format(floatval($petro['amount']), 2) ?></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="openPetroEditModal('<?= htmlspecialchars($petro['id']) ?>', '<?= htmlspecialchars(date('Y-m', strtotime($petro['date']))) ?>', '<?= htmlspecialchars(floatval($petro['amount'])) ?>')">Edit</button>
+                                <form method="post" class="d-inline" onsubmit="return confirm('Delete this Petro Fuel transaction?');">
+                                    <input type="hidden" name="delete_petro" value="1">
+                                    <input type="hidden" name="petro_id" value="<?= htmlspecialchars($petro['id']) ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <tr id="petroNoRows" style="display:none;">
+                            <td colspan="4" class="text-center text-muted py-3">No Petro Fuel transactions found for this month.</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="2" class="fw-bold">Total</td>
+                            <td class="text-end fw-bold" id="petroViewTotal">SAR <?= number_format($petro_total, 2) ?></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <?php else: ?>
+            <div class="empty-state py-4">No Petro Fuel transactions found for the selected filters.</div>
+            <?php endif; ?>
+            <div class="d-flex justify-content-end mt-3">
+                <button type="button" class="btn btn-outline-dark" onclick="closePetroViewModal()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="petro-modal" id="petroEditModal" aria-hidden="true">
+    <div class="petro-dialog">
+        <div class="petro-dialog-head">
+            <h5><i class="bi bi-pencil-square text-primary"></i> Edit Petro Fuel</h5>
+            <button type="button" class="petro-close" onclick="closePetroEditModal()" aria-label="Close Petro edit form">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form method="post" class="petro-dialog-body">
+            <input type="hidden" name="edit_petro" value="1">
+            <input type="hidden" name="petro_id" id="edit_petro_id">
+            <div class="mb-3">
+                <label for="edit_petro_month" class="form-label fw-bold">Month</label>
+                <input type="month" id="edit_petro_month" name="petro_month" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="edit_petro_amount" class="form-label fw-bold">Amount</label>
+                <input type="number" id="edit_petro_amount" name="petro_amount" class="form-control" step="0.01" min="0.01" required>
+            </div>
+            <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-outline-dark" onclick="closePetroEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle"></i> Update</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openPetroModal() {
+    const modal = document.getElementById('petroModal');
+    if (!modal) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    const amount = document.getElementById('petro_amount');
+    if (amount) amount.focus();
+}
+
+function closePetroModal() {
+    const modal = document.getElementById('petroModal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function openPetroViewModal() {
+    const modal = document.getElementById('petroViewModal');
+    if (!modal) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    filterPetroTransactions();
+}
+
+function closePetroViewModal() {
+    const modal = document.getElementById('petroViewModal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function openPetroEditModal(id, month, amount) {
+    const modal = document.getElementById('petroEditModal');
+    if (!modal) return;
+    document.getElementById('edit_petro_id').value = id;
+    document.getElementById('edit_petro_month').value = month;
+    document.getElementById('edit_petro_amount').value = amount;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closePetroEditModal() {
+    const modal = document.getElementById('petroEditModal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function filterPetroTransactions() {
+    const monthInput = document.getElementById('petro_view_month');
+    const selectedMonth = monthInput ? monthInput.value : '';
+    const rows = document.querySelectorAll('.petro-transaction-row');
+    const noRows = document.getElementById('petroNoRows');
+    const totalCell = document.getElementById('petroViewTotal');
+    let total = 0;
+    let visibleCount = 0;
+
+    rows.forEach(function(row) {
+        const show = !selectedMonth || row.dataset.month === selectedMonth;
+        row.style.display = show ? '' : 'none';
+        if (show) {
+            total += Number(row.dataset.amount || 0);
+            visibleCount++;
+        }
+    });
+
+    if (noRows) {
+        noRows.style.display = visibleCount === 0 ? '' : 'none';
+    }
+    if (totalCell) {
+        totalCell.textContent = 'SAR ' + total.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+}
+
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('petroModal');
+    if (modal && event.target === modal) {
+        closePetroModal();
+    }
+    const viewModal = document.getElementById('petroViewModal');
+    if (viewModal && event.target === viewModal) {
+        closePetroViewModal();
+    }
+    const editModal = document.getElementById('petroEditModal');
+    if (editModal && event.target === editModal) {
+        closePetroEditModal();
+    }
+});
+
+(function() {
+    const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    let activePicker = null;
+
+    function pad(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function parseIso(value) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+        if (!match) return new Date();
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+
+    function parseDisplay(value) {
+        const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec((value || '').trim());
+        if (!match) return null;
+        const day = Number(match[1]);
+        const month = Number(match[2]) - 1;
+        const year = Number(match[3]);
+        const date = new Date(year, month, day);
+        if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+            return null;
+        }
+        return date;
+    }
+
+    function toIso(date) {
+        return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+    }
+
+    function toDisplay(date) {
+        return pad(date.getDate()) + '-' + pad(date.getMonth() + 1) + '-' + date.getFullYear();
+    }
+
+    function sameDay(a, b) {
+        return a && b &&
+            a.getFullYear() === b.getFullYear() &&
+            a.getMonth() === b.getMonth() &&
+            a.getDate() === b.getDate();
+    }
+
+    function closeCalendar() {
+        if (!activePicker) return;
+        activePicker.calendar.remove();
+        activePicker = null;
+    }
+
+    function syncTypedDate(input) {
+        const hidden = document.getElementById(input.dataset.target);
+        if (!hidden) return false;
+        const date = parseDisplay(input.value);
+        if (!date) {
+            input.classList.add('is-invalid');
+            return false;
+        }
+        hidden.value = toIso(date);
+        input.value = toDisplay(date);
+        input.classList.remove('is-invalid');
+        return true;
+    }
+
+    function renderCalendar(picker) {
+        const selectedDate = parseIso(picker.hidden.value);
+        const year = picker.viewDate.getFullYear();
+        const month = picker.viewDate.getMonth();
+        const firstOfMonth = new Date(year, month, 1);
+        const startDate = new Date(year, month, 1 - firstOfMonth.getDay());
+        const today = new Date();
+
+        picker.calendar.innerHTML = '';
+
+        const head = document.createElement('div');
+        head.className = 'calendar-head';
+
+        const selects = document.createElement('div');
+        selects.className = 'calendar-selects';
+
+        const monthSelect = document.createElement('select');
+        monthSelect.setAttribute('aria-label', 'Select month');
+        monthSelect.addEventListener('mousedown', function(event) {
+            event.stopPropagation();
+        });
+        monthNames.forEach(function(monthName, index) {
+            const option = document.createElement('option');
+            option.value = String(index);
+            option.textContent = monthName;
+            option.selected = index === month;
+            monthSelect.appendChild(option);
+        });
+        monthSelect.addEventListener('change', function() {
+            picker.viewDate = new Date(year, Number(this.value), 1);
+            renderCalendar(picker);
+        });
+
+        const yearSelect = document.createElement('select');
+        yearSelect.setAttribute('aria-label', 'Select year');
+        yearSelect.addEventListener('mousedown', function(event) {
+            event.stopPropagation();
+        });
+        for (let optionYear = year - 10; optionYear <= year + 10; optionYear++) {
+            const option = document.createElement('option');
+            option.value = String(optionYear);
+            option.textContent = String(optionYear);
+            option.selected = optionYear === year;
+            yearSelect.appendChild(option);
+        }
+        yearSelect.addEventListener('change', function() {
+            picker.viewDate = new Date(Number(this.value), month, 1);
+            renderCalendar(picker);
+        });
+
+        selects.append(monthSelect, yearSelect);
+
+        const nav = document.createElement('div');
+        nav.className = 'calendar-nav';
+
+        const prev = document.createElement('button');
+        prev.type = 'button';
+        prev.setAttribute('aria-label', 'Previous month');
+        prev.innerHTML = '<i class="bi bi-chevron-left"></i>';
+        prev.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.viewDate = new Date(year, month - 1, 1);
+            renderCalendar(picker);
+        });
+
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.setAttribute('aria-label', 'Next month');
+        next.innerHTML = '<i class="bi bi-chevron-right"></i>';
+        next.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.viewDate = new Date(year, month + 1, 1);
+            renderCalendar(picker);
+        });
+
+        nav.append(prev, next);
+        head.append(selects, nav);
+        picker.calendar.appendChild(head);
+
+        const grid = document.createElement('div');
+        grid.className = 'calendar-grid';
+
+        weekdays.forEach(function(day) {
+            const weekday = document.createElement('div');
+            weekday.className = 'calendar-weekday';
+            weekday.textContent = day;
+            grid.appendChild(weekday);
+        });
+
+        for (let i = 0; i < 42; i++) {
+            const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+            const day = document.createElement('button');
+            day.type = 'button';
+            day.className = 'calendar-day';
+            day.textContent = date.getDate();
+            if (date.getMonth() !== month) day.classList.add('is-muted');
+            if (sameDay(date, today)) day.classList.add('is-today');
+            if (sameDay(date, selectedDate)) day.classList.add('is-selected');
+            day.addEventListener('mousedown', function(event) {
+                event.preventDefault();
+                picker.hidden.value = toIso(date);
+                picker.input.value = toDisplay(date);
+                closeCalendar();
+            });
+            grid.appendChild(day);
+        }
+
+        picker.calendar.appendChild(grid);
+
+        const foot = document.createElement('div');
+        foot.className = 'calendar-foot';
+
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.textContent = 'Clear';
+        clear.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.hidden.value = '';
+            picker.input.value = '';
+            closeCalendar();
+        });
+
+        const todayButton = document.createElement('button');
+        todayButton.type = 'button';
+        todayButton.textContent = 'Today';
+        todayButton.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            picker.hidden.value = toIso(today);
+            picker.input.value = toDisplay(today);
+            closeCalendar();
+        });
+
+        foot.append(clear, todayButton);
+        picker.calendar.appendChild(foot);
+    }
+
+    function openCalendar(input) {
+        const hidden = document.getElementById(input.dataset.target);
+        if (!hidden) return;
+        if (activePicker && activePicker.input === input) {
+            return;
+        }
+        if (input.value.trim() !== '') {
+            syncTypedDate(input);
+        }
+        closeCalendar();
+
+        const calendar = document.createElement('div');
+        calendar.className = 'analytics-calendar is-open';
+        const selected = parseIso(hidden.value);
+
+        const picker = {
+            input,
+            hidden,
+            calendar,
+            viewDate: new Date(selected.getFullYear(), selected.getMonth(), 1)
+        };
+
+        activePicker = picker;
+        input.closest('.date-picker-wrap').appendChild(calendar);
+        renderCalendar(picker);
+    }
+
+    document.querySelectorAll('.js-date-picker').forEach(function(input) {
+        input.addEventListener('click', function() {
+            openCalendar(input);
+        });
+        input.addEventListener('focus', function() {
+            openCalendar(input);
+        });
+        input.addEventListener('change', function() {
+            if (input.value.trim() !== '') {
+                syncTypedDate(input);
+            }
+        });
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openCalendar(input);
+            }
+            if (event.key === 'Escape') {
+                closeCalendar();
+            }
+        });
+    });
+
+    const filterForm = document.querySelector('.filter-card');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function(event) {
+            let valid = true;
+            document.querySelectorAll('.js-date-picker').forEach(function(input) {
+                if (input.value.trim() !== '' && !syncTypedDate(input)) {
+                    valid = false;
+                }
+            });
+            if (!valid) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    document.addEventListener('click', function(event) {
+        if (!activePicker) return;
+        if (!activePicker.calendar.contains(event.target) && event.target !== activePicker.input) {
+            closeCalendar();
+        }
+    });
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const moneyTick = value => 'SAR ' + Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -733,8 +1860,8 @@ const categoryChart = new Chart(document.getElementById('categoryChart'), {
     }
 });
 window.addEventListener('beforeprint', () => {
-    trendChart.resize(500, 126);
-    categoryChart.resize(500, 126);
+    trendChart.resize(500, 186);
+    categoryChart.resize(500, 186);
 });
 window.addEventListener('afterprint', () => {
     trendChart.resize();
