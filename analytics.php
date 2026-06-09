@@ -1093,9 +1093,9 @@ $month_values = array_map(function($value) {
             <p>Track spending trends, category mix, advances, and recent expense movement.</p>
         </div>
         <div class="d-flex gap-2 no-print">
-            <button class="btn btn-outline-dark" type="button" style="pointer-events: none;">
-    <i class="bi bi-printer"></i> Print A4
-</button>
+            <button class="btn btn-outline-dark" type="button" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print A4
+            </button>
             <a class="btn btn-primary" href="<?= htmlspecialchars($report_url) ?>"><i class="bi bi-table"></i> Expense Report</a>
         </div>
     </section>
