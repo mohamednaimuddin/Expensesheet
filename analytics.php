@@ -1257,10 +1257,10 @@ $month_values = array_map(function($value) {
                         <?php if ($table === 'fuel_expense'): ?>
                             <div class="bar-track bar-stack">
                                 <?php if ($fuel_segment_width > 0): ?>
-                                <div class="bar-segment <?= $petro_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Fuel: SAR <?= htmlspecialchars(number_format($fuel_base_total, 2)) ?>" style="width: <?= round($fuel_segment_width, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div>
+                                <div class="bar-segment <?= $petro_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Fuel: SAR <?= htmlspecialchars(number_format($fuel_base_total, 2)) ?>" style="width: <?= round($fuel_segment_width, 2) ?>%; background: #94a3b8"></div>
                                 <?php endif; ?>
                                 <?php if ($petro_segment_width > 0): ?>
-                                <div class="bar-segment <?= $fuel_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Petro: SAR <?= htmlspecialchars(number_format($petro_total, 2)) ?>" style="width: <?= round($petro_segment_width, 2) ?>%; background: #94a3b8"></div>
+                                <div class="bar-segment <?= $fuel_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Petro: SAR <?= htmlspecialchars(number_format($petro_total, 2)) ?>" style="width: <?= round($petro_segment_width, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div>
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
