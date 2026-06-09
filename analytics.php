@@ -212,6 +212,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_petro'])) {
     exit();
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['edit_petro']) || isset($_POST['delete_petro']))) {
+    if (!in_array($role, ['admin', 'superadmin'], true)) {
+        die("Not allowed.");
+    }
+
+    $petro_id = intval($_POST['petro_id'] ?? 0);
+    if ($petro_id <= 0) {
+        die("Invalid Petro Fuel transaction.");
+    }
+
+    if (isset($_POST['delete_petro'])) {
+        $stmt = $conn->prepare("DELETE FROM petro WHERE id=?");
+        $stmt->bind_param("i", $petro_id);
+        $stmt->execute();
+    } else {
+        $petro_month = trim($_POST['petro_month'] ?? '');
+        $petro_amount = floatval($_POST['petro_amount'] ?? 0);
+
+        if (!preg_match('/^\d{4}-\d{2}$/', $petro_month) || $petro_amount <= 0) {
+            die("Invalid Petro Fuel entry.");
+        }
+
+        $petro_date = $petro_month . '-01';
+        $stmt = $conn->prepare("UPDATE petro SET `date`=?, amount=? WHERE id=?");
+        $stmt->bind_param("sdi", $petro_date, $petro_amount, $petro_id);
+        $stmt->execute();
+    }
+
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
+}
+
 $category_totals = [];
 $category_counts = [];
 $pending_bills = 0;
@@ -295,7 +327,7 @@ while ($row = $res->fetch_assoc()) {
     }
 }
 
-$stmt = $conn->prepare("SELECT p.created_by AS username, 'Petro Fuel' AS description, p.amount, p.date FROM petro p WHERE $petro_where ORDER BY p.date DESC, p.id DESC");
+$stmt = $conn->prepare("SELECT p.id, p.created_by AS username, 'Petro Fuel' AS description, p.amount, p.date FROM petro p WHERE $petro_where ORDER BY p.date DESC, p.id DESC");
 $res = bind_and_execute($stmt, $petro_types, $petro_params);
 $petro_transactions = [];
 while ($row = $res->fetch_assoc()) {
@@ -790,6 +822,9 @@ $month_values = array_map(function($value) {
     }
     .petro-dialog-body {
         padding: 18px;
+    }
+    .petro-dialog-wide {
+        width: min(620px, 100%);
     }
     @media (max-width: 768px) {
         .hero { align-items: flex-start; flex-direction: column; }
@@ -1326,7 +1361,7 @@ $month_values = array_map(function($value) {
 </div>
 
 <div class="petro-modal" id="petroViewModal" aria-hidden="true">
-    <div class="petro-dialog">
+    <div class="petro-dialog petro-dialog-wide">
         <div class="petro-dialog-head">
             <h5><i class="bi bi-list-ul text-primary"></i> Petro Fuel Transactions</h5>
             <button type="button" class="petro-close" onclick="closePetroViewModal()" aria-label="Close Petro transactions">
@@ -1346,6 +1381,7 @@ $month_values = array_map(function($value) {
                             <th>Date</th>
                             <th>Entered By</th>
                             <th class="text-end">Amount</th>
+                            <th class="text-end">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1354,16 +1390,25 @@ $month_values = array_map(function($value) {
                             <td><?= htmlspecialchars(date('d M Y', strtotime($petro['date']))) ?></td>
                             <td><?= htmlspecialchars($petro['username']) ?></td>
                             <td class="text-end fw-bold">SAR <?= number_format(floatval($petro['amount']), 2) ?></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="openPetroEditModal('<?= htmlspecialchars($petro['id']) ?>', '<?= htmlspecialchars(date('Y-m', strtotime($petro['date']))) ?>', '<?= htmlspecialchars(floatval($petro['amount'])) ?>')">Edit</button>
+                                <form method="post" class="d-inline" onsubmit="return confirm('Delete this Petro Fuel transaction?');">
+                                    <input type="hidden" name="delete_petro" value="1">
+                                    <input type="hidden" name="petro_id" value="<?= htmlspecialchars($petro['id']) ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                         <tr id="petroNoRows" style="display:none;">
-                            <td colspan="3" class="text-center text-muted py-3">No Petro Fuel transactions found for this month.</td>
+                            <td colspan="4" class="text-center text-muted py-3">No Petro Fuel transactions found for this month.</td>
                         </tr>
                     </tbody>
                     <tfoot>
                         <tr>
                             <td colspan="2" class="fw-bold">Total</td>
                             <td class="text-end fw-bold" id="petroViewTotal">SAR <?= number_format($petro_total, 2) ?></td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -1375,6 +1420,33 @@ $month_values = array_map(function($value) {
                 <button type="button" class="btn btn-outline-dark" onclick="closePetroViewModal()">Close</button>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="petro-modal" id="petroEditModal" aria-hidden="true">
+    <div class="petro-dialog">
+        <div class="petro-dialog-head">
+            <h5><i class="bi bi-pencil-square text-primary"></i> Edit Petro Fuel</h5>
+            <button type="button" class="petro-close" onclick="closePetroEditModal()" aria-label="Close Petro edit form">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form method="post" class="petro-dialog-body">
+            <input type="hidden" name="edit_petro" value="1">
+            <input type="hidden" name="petro_id" id="edit_petro_id">
+            <div class="mb-3">
+                <label for="edit_petro_month" class="form-label fw-bold">Month</label>
+                <input type="month" id="edit_petro_month" name="petro_month" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="edit_petro_amount" class="form-label fw-bold">Amount</label>
+                <input type="number" id="edit_petro_amount" name="petro_amount" class="form-control" step="0.01" min="0.01" required>
+            </div>
+            <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-outline-dark" onclick="closePetroEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle"></i> Update</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1405,6 +1477,23 @@ function openPetroViewModal() {
 
 function closePetroViewModal() {
     const modal = document.getElementById('petroViewModal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function openPetroEditModal(id, month, amount) {
+    const modal = document.getElementById('petroEditModal');
+    if (!modal) return;
+    document.getElementById('edit_petro_id').value = id;
+    document.getElementById('edit_petro_month').value = month;
+    document.getElementById('edit_petro_amount').value = amount;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closePetroEditModal() {
+    const modal = document.getElementById('petroEditModal');
     if (!modal) return;
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
@@ -1447,6 +1536,10 @@ document.addEventListener('click', function(event) {
     const viewModal = document.getElementById('petroViewModal');
     if (viewModal && event.target === viewModal) {
         closePetroViewModal();
+    }
+    const editModal = document.getElementById('petroEditModal');
+    if (editModal && event.target === editModal) {
+        closePetroEditModal();
     }
 });
 

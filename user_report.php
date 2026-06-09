@@ -287,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_carrydown'])) {
 
     if ($carrydown_exists) {
         // Update existing
-        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, description=?, updated_at=NOW() WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=?");
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, description=? WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m')=?");
         $stmt->bind_param("dsss", $cd_amount, $cd_desc, $username, $current_month);
     } else {
         // Insert new
@@ -379,7 +379,7 @@ if (!$carrydown_exists) {
     $expected_carrydown = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
 
     if (strpos($carrydown_desc, 'Carryforward from ') === 0 && abs($carrydown_value - $expected_carrydown) >= 0.005) {
-        $stmt = $conn->prepare("UPDATE carry_down SET amount=?, updated_at=NOW() WHERE id=?");
+        $stmt = $conn->prepare("UPDATE carry_down SET amount=? WHERE id=?");
         $stmt->bind_param("di", $expected_carrydown, $current_month_carry['id']);
         $stmt->execute();
         $carrydown_value = $expected_carrydown;
