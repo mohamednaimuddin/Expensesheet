@@ -659,35 +659,178 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     body {
         -webkit-print-color-adjust: exact;
         color-adjust: exact;
-        margin: 10mm;
+        margin: 0;
+        padding: 0;
         font-size: 12px;
         background: #fff !important;
     }
     body::before {
-        content: "";
-        position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        background: url('assets/vision1.png') no-repeat center center;
-        background-size: 50%;
-        opacity: 0.05;
-        z-index: 9999;
-        pointer-events: none;
-        background-color: #aeb6bd;
+        display: none !important;
     }
-    .report-toolbar, .btn-glass, button, input, select { display: none !important; }
-    .total-summary { font-size: 11px; margin-top: 5px; text-align: right; display: flex; justify-content: flex-end; margin-top: 20px; }
-    table { width: 100%; border-collapse: collapse; border: 2px solid black; page-break-inside: auto; }
+    @page {
+        size: A4 portrait;
+        margin: 12mm 10mm 14mm;
+    }
+    html, body {
+        overflow: visible !important;
+        height: auto !important;
+    }
+    body {
+        width: 100%;
+    }
+    .page-loader,
+    .report-toolbar,
+    .table-responsive.d-print-none,
+    .modal,
+    .btn-glass,
+    button,
+    input,
+    select,
+    textarea {
+        display: none !important;
+    }
+    .report-header,
+    .print-header,
+    .report-footer,
+    .table-responsive.d-none.d-print-block,
+    .total-summary {
+        width: 90%;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    .report-header {
+        display: block;
+        text-align: center;
+        background: transparent !important;
+        box-shadow: none !important;
+        border: 0 !important;
+        padding: 0 0 12px !important;
+        margin: 0 auto 18px !important;
+        position: relative;
+    }
+    .report-header h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.2;
+        background: none !important;
+        -webkit-text-fill-color: #111827 !important;
+        color: #111827 !important;
+    }
+    .report-header h2 i {
+        display: none !important;
+    }
+    .invoice-badge {
+        position: absolute;
+        right: 0;
+        top: 6px;
+        background: transparent !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        font-size: 16px;
+        font-weight: 700;
+        color: #111827 !important;
+        letter-spacing: 0;
+    }
+    .print-header {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin-bottom: 14px !important;
+        font-size: 14px;
+        color: #111827 !important;
+    }
+    .print-header strong {
+        color: #111827 !important;
+        font-weight: 700;
+    }
+    .print-header span[style*='color:#94a3b8'] {
+        color: #111827 !important;
+        opacity: 1 !important;
+    }
+    .print-header > div:last-child {
+        text-align: right !important;
+        min-width: 255px;
+    }
+    .table-responsive {
+        overflow: visible !important;
+    }
+    .table-responsive::-webkit-scrollbar {
+        display: none !important;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid #4b5563 !important;
+        page-break-inside: auto;
+        background: #fff !important;
+    }
     thead { display: table-header-group; }
     tfoot { display: table-row-group; }
     tr { page-break-inside: avoid; page-break-after: auto; }
-    th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; color: black; }
-    th, td { border: 0.5px solid black; padding: 4px 6px; font-size: 11px; text-align: left; word-wrap: break-word; color: black; }
-    html, body { overflow: visible !important; height: auto !important; }
-    .table-responsive { overflow: visible !important; }
-    .table-responsive::-webkit-scrollbar { display: none !important; }
-    .report-header, .print-header { background: #fff !important; box-shadow: none !important; border-color: #ddd !important; }
-    .report-header h2 { background: none !important; -webkit-text-fill-color: #000 !important; color: #000 !important; }
+    th {
+        background-color: #e5e7eb !important;
+        -webkit-print-color-adjust: exact;
+        color: #111827 !important;
+        font-weight: 700;
+        text-align: left;
+    }
+    th, td {
+        border: 1px solid #4b5563 !important;
+        padding: 7px 8px !important;
+        font-size: 11px;
+        text-align: left;
+        vertical-align: middle;
+        word-wrap: break-word;
+        color: #111827 !important;
+    }
+    td.text-center,
+    th[style*='text-align:center'] {
+        text-align: center !important;
+    }
+    .table tfoot td {
+        font-weight: 700;
+        background: #f9fafb !important;
+    }
+    .total-summary {
+        display: flex !important;
+        justify-content: center;
+        align-items: center;
+        gap: 14px;
+        margin-top: 16px !important;
+        padding: 12px 18px !important;
+        border: 0 !important;
+        border-radius: 8px;
+        background: #f3f4f6 !important;
+        color: #111827 !important;
+        font-size: 12px !important;
+        font-weight: 600;
+        text-align: left !important;
+    }
+    .total-summary strong {
+        min-width: 92px;
+        display: inline-block;
+    }
+    .report-footer {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 24px;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin-top: 42px !important;
+        font-size: 12px;
+        color: #111827 !important;
+    }
 }
 
 /* ── Modal styling ── */
