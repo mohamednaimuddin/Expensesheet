@@ -7,6 +7,23 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['user', 'admin', 
 
 include 'config.php';
 
+function normalize_filter_date($value, $fallback) {
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', (string)$value, $matches)) {
+        return $fallback;
+    }
+
+    $year = (int)$matches[1];
+    $month = (int)$matches[2];
+    $day = (int)$matches[3];
+    if ($month < 1 || $month > 12 || $day < 1) {
+        return $fallback;
+    }
+
+    $last_day = (int)date('t', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+    $day = min($day, $last_day);
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+}
+
 $conn->query("CREATE TABLE IF NOT EXISTS petro (
     id INT AUTO_INCREMENT PRIMARY KEY,
     `date` DATE NOT NULL,
@@ -26,11 +43,12 @@ $to_date = $_GET['to_date'] ?? $today;
 $region_filter = $_GET['region'] ?? 'All';
 $selected_company = isset($_GET['company_id']) ? trim($_GET['company_id']) : 'All';
 
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from_date)) $from_date = date('Y-m-01');
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to_date)) $to_date = $today;
+$from_date = normalize_filter_date($from_date, date('Y-m-01'));
+$to_date = normalize_filter_date($to_date, $today);
 if ($from_date > $to_date) {
     [$from_date, $to_date] = [$to_date, $from_date];
 }
+$trend_from_date = date('Y-m-01', strtotime('-5 months', strtotime($to_date)));
 
 $expense_tables = [
     'fuel_expense' => ['label' => 'Fuel', 'icon' => 'bi-fuel-pump', 'color' => '#2563eb'],
@@ -126,11 +144,11 @@ if ($region_filter !== 'All' && !in_array($region_filter, $region_options, true)
     $region_filter = 'All';
 }
 
-function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $selected_company, $region_filter) {
+function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $selected_company, $region_filter, $range_from = null, $range_to = null) {
     $join = '';
     $where = ["e.submitted=1", "e.date BETWEEN ? AND ?"];
     $types = "ss";
-    $params = [$GLOBALS['from_date'], $GLOBALS['to_date']];
+    $params = [$range_from ?? $GLOBALS['from_date'], $range_to ?? $GLOBALS['to_date']];
 
     if ($role === 'user') {
         $where[] = "e.username=?";
@@ -157,10 +175,10 @@ function build_scope_sql($conn, $table, $role, $username, $admin_company_id, $se
     return [$join, implode(" AND ", $where), $types, $params];
 }
 
-function build_petro_scope_sql($role, $username, $admin_company_id, $selected_company) {
+function build_petro_scope_sql($role, $username, $admin_company_id, $selected_company, $range_from = null, $range_to = null) {
     $where = ["p.date BETWEEN ? AND ?"];
     $types = "ss";
-    $params = [$GLOBALS['from_date'], $GLOBALS['to_date']];
+    $params = [$range_from ?? $GLOBALS['from_date'], $range_to ?? $GLOBALS['to_date']];
 
     if ($role === 'user') {
         $where[] = "p.created_by=?";
@@ -246,6 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['edit_petro']) || iss
 
 $category_totals = [];
 $category_counts = [];
+$category_user_breakdown = [];
 $pending_bills = 0;
 $total_expense = 0.0;
 $total_records = 0;
@@ -254,7 +273,7 @@ $recent_expenses = [];
 $month_totals = [];
 
 $period = new DatePeriod(
-    new DateTime(date('Y-m-01', strtotime('-5 months', strtotime($to_date)))),
+    new DateTime($trend_from_date),
     new DateInterval('P1M'),
     (new DateTime(date('Y-m-01', strtotime($to_date))))->modify('+1 month')
 );
@@ -273,14 +292,25 @@ foreach ($expense_tables as $table => $meta) {
     $total_expense += $category_totals[$table];
     $total_records += $category_counts[$table];
 
+    $category_user_breakdown[$table] = [];
+    $stmt = $conn->prepare("SELECT e.username, IFNULL(SUM(e.amount),0) AS total FROM `$table` e $join WHERE $where GROUP BY e.username ORDER BY total DESC, e.username ASC");
+    $res = bind_and_execute($stmt, $types, $params);
+    while ($row = $res->fetch_assoc()) {
+        $user_name = trim($row['username'] ?? '');
+        if ($user_name !== '') {
+            $category_user_breakdown[$table][$user_name] = ($category_user_breakdown[$table][$user_name] ?? 0) + floatval($row['total']);
+        }
+    }
+
     if (table_has_column($conn, $table, 'bill')) {
         $stmt = $conn->prepare("SELECT COUNT(*) AS pending FROM `$table` e $join WHERE $where AND (e.bill IS NULL OR TRIM(e.bill)='' OR LOWER(e.bill) IN ('no','pending','n','0'))");
         $res = bind_and_execute($stmt, $types, $params);
         $pending_bills += intval($res->fetch_assoc()['pending'] ?? 0);
     }
 
-    $stmt = $conn->prepare("SELECT DATE_FORMAT(e.date, '%Y-%m') AS month_key, IFNULL(SUM(e.amount),0) AS total FROM `$table` e $join WHERE $where GROUP BY month_key");
-    $res = bind_and_execute($stmt, $types, $params);
+    [$trend_join, $trend_where, $trend_types, $trend_params] = build_scope_sql($conn, $table, $role, $username, $admin_company_id, $selected_company, $region_filter, $trend_from_date, $to_date);
+    $stmt = $conn->prepare("SELECT DATE_FORMAT(e.date, '%Y-%m') AS month_key, IFNULL(SUM(e.amount),0) AS total FROM `$table` e $trend_join WHERE $trend_where GROUP BY month_key");
+    $res = bind_and_execute($stmt, $trend_types, $trend_params);
     while ($row = $res->fetch_assoc()) {
         if (isset($month_totals[$row['month_key']])) {
             $month_totals[$row['month_key']] += floatval($row['total']);
@@ -319,8 +349,20 @@ $category_counts['fuel_expense'] = ($category_counts['fuel_expense'] ?? 0) + $pe
 $total_expense += $petro_total;
 $total_records += $petro_records;
 
-$stmt = $conn->prepare("SELECT DATE_FORMAT(p.date, '%Y-%m') AS month_key, IFNULL(SUM(p.amount),0) AS total FROM petro p WHERE $petro_where GROUP BY month_key");
+$category_user_breakdown['fuel_expense'] = $category_user_breakdown['fuel_expense'] ?? [];
+$stmt = $conn->prepare("SELECT 'Petro' AS username, IFNULL(SUM(p.amount),0) AS total FROM petro p WHERE $petro_where HAVING total > 0");
 $res = bind_and_execute($stmt, $petro_types, $petro_params);
+while ($row = $res->fetch_assoc()) {
+    $user_name = trim($row['username'] ?? '');
+    if ($user_name !== '') {
+        $category_user_breakdown['fuel_expense'][$user_name] = ($category_user_breakdown['fuel_expense'][$user_name] ?? 0) + floatval($row['total']);
+    }
+}
+arsort($category_user_breakdown['fuel_expense']);
+
+[$trend_petro_where, $trend_petro_types, $trend_petro_params] = build_petro_scope_sql($role, $username, $admin_company_id, $selected_company, $trend_from_date, $to_date);
+$stmt = $conn->prepare("SELECT DATE_FORMAT(p.date, '%Y-%m') AS month_key, IFNULL(SUM(p.amount),0) AS total FROM petro p WHERE $trend_petro_where GROUP BY month_key");
+$res = bind_and_execute($stmt, $trend_petro_types, $trend_petro_params);
 while ($row = $res->fetch_assoc()) {
     if (isset($month_totals[$row['month_key']])) {
         $month_totals[$row['month_key']] += floatval($row['total']);
@@ -407,6 +449,28 @@ $month_labels = array_map(function($month) {
 $month_values = array_map(function($value) {
     return round($value, 2);
 }, array_values($month_totals));
+$trend_count = count($month_values);
+$trend_total = array_sum($month_values);
+$trend_average = $trend_count > 0 ? $trend_total / $trend_count : 0;
+$trend_peak_value = $trend_count > 0 ? max($month_values) : 0;
+$trend_low_value = $trend_count > 0 ? min($month_values) : 0;
+$trend_peak_index = $trend_count > 0 ? array_search($trend_peak_value, $month_values, true) : 0;
+$trend_low_index = $trend_count > 0 ? array_search($trend_low_value, $month_values, true) : 0;
+$trend_peak_label = $month_labels[$trend_peak_index] ?? '-';
+$trend_low_label = $month_labels[$trend_low_index] ?? '-';
+$trend_latest_value = $trend_count > 0 ? $month_values[$trend_count - 1] : 0;
+$trend_previous_value = $trend_count > 1 ? $month_values[$trend_count - 2] : 0;
+$trend_change_amount = $trend_latest_value - $trend_previous_value;
+$trend_change_percent = $trend_previous_value > 0 ? ($trend_change_amount / $trend_previous_value) * 100 : ($trend_latest_value > 0 ? 100 : 0);
+$trend_average_values = array_fill(0, $trend_count, round($trend_average, 2));
+$trend_change_values = [];
+foreach ($month_values as $index => $value) {
+    if ($index === 0) {
+        $trend_change_values[] = 0;
+        continue;
+    }
+    $trend_change_values[] = round($value - $month_values[$index - 1], 2);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -695,6 +759,69 @@ $month_values = array_map(function($value) {
         height: 260px;
     }
     .chart-title { font-weight: 800; margin-bottom: 16px; }
+    .trend-insights {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 9px;
+        margin: -4px 0 14px;
+    }
+    .trend-insight {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 9px 10px;
+        background: #f8fafc;
+        min-width: 0;
+    }
+    .trend-insight span {
+        display: block;
+        color: #64748b;
+        font-size: .72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        line-height: 1.1;
+    }
+    .trend-insight strong {
+        display: block;
+        color: #0f172a;
+        font-size: .96rem;
+        font-weight: 900;
+        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .trend-insight small {
+        display: block;
+        color: #64748b;
+        font-weight: 700;
+        font-size: .72rem;
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .trend-insight.is-up strong { color: #dc2626; }
+    .trend-insight.is-down strong { color: #16a34a; }
+    .trend-legend-note {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 700;
+        margin-top: 10px;
+    }
+    .trend-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    @media (max-width: 768px) {
+        .trend-insights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     .category-row {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -702,11 +829,84 @@ $month_values = array_map(function($value) {
         align-items: center;
         padding: 12px 0;
         border-bottom: 1px solid #eef2f7;
+        position: relative;
     }
     .category-row:last-child { border-bottom: 0; }
+    .category-row:hover,
+    .category-row:focus-within {
+        z-index: 20;
+    }
     .category-name { display: flex; align-items: center; gap: 10px; font-weight: 700; }
     .category-name i { color: var(--brand); }
     .category-amount { font-weight: 800; }
+    .category-hover-card {
+        position: absolute;
+        right: 0;
+        top: calc(100% - 8px);
+        width: min(310px, 92vw);
+        padding: 12px;
+        border: 1px solid rgba(15, 23, 42, .1);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .98);
+        box-shadow: 0 18px 42px rgba(15, 23, 42, .18);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-4px);
+        transition: opacity .16s ease, transform .16s ease;
+    }
+    .category-row:hover .category-hover-card,
+    .category-row:focus-within .category-hover-card {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+    }
+    .category-hover-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid #e2e8f0;
+        color: #0f172a;
+        font-weight: 800;
+        font-size: .88rem;
+    }
+    .category-hover-count {
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .category-hover-list {
+        display: grid;
+        gap: 7px;
+        max-height: 220px;
+        overflow: auto;
+    }
+    .category-hover-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: #334155;
+        font-size: .86rem;
+    }
+    .category-hover-item span:first-child {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .category-hover-item strong {
+        color: #0f172a;
+        white-space: nowrap;
+    }
+    .category-hover-empty {
+        color: #64748b;
+        font-weight: 700;
+        font-size: .84rem;
+    }
     .category-label-actions {
         display: inline-flex;
         align-items: center;
@@ -838,7 +1038,7 @@ $month_values = array_map(function($value) {
         }
     }
     @media print {
-        @page { size: A4 landscape; margin: 6mm; }
+        @page { size: A4 landscape; margin: 4mm; }
         * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -851,9 +1051,9 @@ $month_values = array_map(function($value) {
             overflow: visible;
             background: #fff !important;
         }
-        body { color: #0f172a; font-size: 10px; line-height: 1.25; }
+        body { color: #0f172a; font-size: 9.2px; line-height: 1.16; }
         main.page-shell {
-            zoom: 1;
+            zoom: .9;
         }
         .navbar, .filter-card, .no-print { display: none !important; }
         .page-shell {
@@ -866,25 +1066,25 @@ $month_values = array_map(function($value) {
         main.page-shell {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            column-gap: 6px;
-            row-gap: 3px;
+            column-gap: 5px;
+            row-gap: 2px;
         }
         .hero {
             grid-column: 1 / -1;
-            padding: 5px 9px;
-            margin-bottom: 4px;
+            padding: 4px 8px;
+            margin-bottom: 2px;
             box-shadow: none;
             border-color: #cbd5e1;
             background: #f8fafc;
         }
-        .hero h1 { font-size: 16px; }
+        .hero h1 { font-size: 14px; }
         .hero p { display: none; }
         .print-meta {
             grid-column: 1 / -1;
             display: block;
-            margin: 0 0 5px;
+            margin: 0 0 3px;
             color: #475569;
-            font-size: 8.5px;
+            font-size: 7.8px;
         }
         .row {
             display: flex !important;
@@ -901,7 +1101,7 @@ $month_values = array_map(function($value) {
             padding-left: 3px !important;
             padding-right: 3px !important;
         }
-        .mb-4 { margin-bottom: 4px !important; }
+        .mb-4 { margin-bottom: 2px !important; }
         .print-charts {
             margin-bottom: 0 !important;
         }
@@ -952,14 +1152,14 @@ $month_values = array_map(function($value) {
             background: #fff;
         }
         .metric-card {
-            min-height: 52px;
-            padding: 6px 8px;
+            min-height: 43px;
+            padding: 4px 7px;
             break-inside: avoid;
             page-break-inside: avoid;
         }
         .metric-head {
-            gap: 5px;
-            margin-bottom: 3px;
+            gap: 4px;
+            margin-bottom: 1px;
         }
         .metric-icon {
             width: 18px;
@@ -967,17 +1167,18 @@ $month_values = array_map(function($value) {
             border-radius: 4px;
             font-size: 9px;
         }
-        .metric-label { font-size: 7px; }
-        .metric-value { font-size: 12px; }
+        .metric-label { font-size: 6.5px; }
+        .metric-value { font-size: 10.8px; }
         .print-charts .chart-card {
-            padding: 7px 8px;
+            padding: 5px 7px;
             min-height: 0;
-            height: 226px;
+            height: 228px;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
         .print-charts .category-share-card {
-            height: 226px;
+            height: 228px;
         }
         .print-details {
             margin-top: 0 !important;
@@ -985,15 +1186,17 @@ $month_values = array_map(function($value) {
         .print-details .chart-card,
         .print-details .table-card {
             min-height: 0;
-            height: 330px;
-            padding: 7px 8px;
+            height: 360px;
+            padding: 5px 7px;
             overflow: hidden;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .print-details .chart-card {
-            height: 365px;
+            height: 360px;
         }
         .print-details .top-spenders-card {
-            height: 330px;
+            height: 360px;
         }
         .print-details .table-card {
             display: flex;
@@ -1003,44 +1206,78 @@ $month_values = array_map(function($value) {
             flex: 1;
         }
         .chart-title {
-            font-size: 12px;
-            margin-bottom: 6px;
+            font-size: 10.5px;
+            margin-bottom: 4px;
+        }
+        .trend-insights {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 3px;
+            margin: 0 0 4px;
+        }
+        .trend-insight {
+            padding: 4px 5px;
+            border-radius: 6px;
+        }
+        .trend-insight span {
+            font-size: 6.4px;
+        }
+        .trend-insight strong {
+            font-size: 8.2px;
+            margin-top: 2px;
+        }
+        .trend-insight small {
+            font-size: 6.4px;
+            margin-top: 1px;
+        }
+        .trend-legend-note {
+            display: none !important;
         }
         .print-charts .chart-canvas-box {
             flex: 1;
-            height: 186px !important;
-            min-height: 186px !important;
-            max-height: 186px !important;
+            height: 162px !important;
+            min-height: 162px !important;
+            max-height: 162px !important;
+        }
+        .print-charts .trend-canvas-box {
+            height: 130px !important;
+            min-height: 130px !important;
+            max-height: 130px !important;
         }
         .print-charts canvas {
             width: 100% !important;
-            height: 186px !important;
-            max-height: 186px !important;
+            height: 162px !important;
+            max-height: 162px !important;
+        }
+        .print-charts .trend-canvas-box canvas {
+            height: 130px !important;
+            max-height: 130px !important;
         }
         .print-charts .category-share-card .chart-canvas-box {
-            height: 186px !important;
-            min-height: 186px !important;
-            max-height: 186px !important;
+            height: 162px !important;
+            min-height: 162px !important;
+            max-height: 162px !important;
         }
         .print-charts .category-share-card canvas {
-            height: 186px !important;
-            max-height: 186px !important;
+            height: 162px !important;
+            max-height: 162px !important;
         }
         .category-row {
             grid-template-columns: 1fr auto;
-            gap: 4px 10px;
-            padding: 3.5px 0;
-            font-size: 11px;
+            gap: 3px 8px;
+            padding: 4px 0;
+            font-size: 9.8px;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .category-name,
         .category-amount {
             line-height: 1.15;
         }
-        .category-name { gap: 7px; }
-        .category-name i { font-size: 11px; }
-        .bar-track { height: 5px; }
+        .category-name { gap: 5px; }
+        .category-name i { font-size: 9px; }
+        .bar-track { height: 4.5px; }
         .table-card .p-3 {
-            padding: 0 0 7px !important;
+            padding: 0 0 5px !important;
         }
         .spender-table {
             table-layout: fixed;
@@ -1067,6 +1304,136 @@ $month_values = array_map(function($value) {
         }
         .table-responsive {
             overflow: hidden !important;
+        }
+        /* Final print layout pass: fixed A4 rows for readability and one-page fit. */
+        body {
+            font-size: 8pt;
+            line-height: 1.22;
+        }
+        main.page-shell {
+            zoom: 1;
+            height: 198mm;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            grid-template-rows: 9mm 4mm 14mm 66mm 93mm;
+            column-gap: 2mm;
+            row-gap: 2mm;
+            overflow: hidden;
+        }
+        .hero {
+            min-height: 0;
+            padding: 2mm 2.5mm;
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        .hero h1 {
+            font-size: 11pt;
+            line-height: 1;
+            margin: 0;
+        }
+        .print-meta {
+            align-self: center;
+            margin: 0;
+            font-size: 6.6pt;
+            line-height: 1;
+        }
+        .print-metrics {
+            height: 14mm;
+            overflow: hidden;
+        }
+        .metric-card {
+            height: 14mm;
+            min-height: 0;
+            padding: 1.5mm 2mm;
+        }
+        .metric-icon {
+            width: 5mm;
+            height: 5mm;
+            font-size: 7pt;
+        }
+        .metric-label {
+            font-size: 5.7pt;
+            line-height: 1;
+        }
+        .metric-value {
+            font-size: 9pt;
+            line-height: 1.05;
+            margin-top: 1mm;
+        }
+        .print-charts .chart-card,
+        .print-charts .category-share-card {
+            height: 66mm;
+            padding: 2mm;
+        }
+        .print-details .chart-card,
+        .print-details .table-card,
+        .print-details .top-spenders-card {
+            height: 93mm;
+            padding: 2mm;
+        }
+        .chart-title {
+            font-size: 8.5pt;
+            line-height: 1;
+            margin-bottom: 1.5mm;
+        }
+        .trend-insights {
+            gap: 1mm;
+            margin: 0 0 1.5mm;
+        }
+        .trend-insight {
+            padding: 1.2mm 1.5mm;
+        }
+        .trend-insight span,
+        .trend-insight small {
+            font-size: 5.4pt;
+        }
+        .trend-insight strong {
+            font-size: 7pt;
+        }
+        .print-charts .chart-canvas-box,
+        .print-charts .category-share-card .chart-canvas-box {
+            height: 48mm !important;
+            min-height: 48mm !important;
+            max-height: 48mm !important;
+        }
+        .print-charts .trend-canvas-box {
+            height: 38mm !important;
+            min-height: 38mm !important;
+            max-height: 38mm !important;
+        }
+        .print-charts canvas,
+        .print-charts .category-share-card canvas {
+            height: 48mm !important;
+            max-height: 48mm !important;
+        }
+        .print-charts .trend-canvas-box canvas {
+            height: 38mm !important;
+            max-height: 38mm !important;
+        }
+        .category-row {
+            padding: 1.25mm 0;
+            font-size: 7.1pt;
+            gap: 1mm 2mm;
+        }
+        .category-name i {
+            font-size: 7.1pt;
+        }
+        .category-amount {
+            font-size: 7.1pt;
+        }
+        .bar-track {
+            height: 1.35mm;
+        }
+        .table {
+            font-size: 7.4pt;
+            line-height: 1.18;
+        }
+        .table > :not(caption) > * > * {
+            padding: 2.15mm 1.5mm;
+        }
+        .table-card .p-3 {
+            padding: 0 0 1.5mm !important;
         }
         a { color: inherit !important; text-decoration: none !important; }
     }
@@ -1208,8 +1575,35 @@ $month_values = array_map(function($value) {
         <div class="col-xl-7">
             <div class="chart-card">
                 <h5 class="chart-title">Six Month Spending Trend</h5>
-                <div class="chart-canvas-box">
+                <div class="trend-insights">
+                    <div class="trend-insight">
+                        <span>6M Average</span>
+                        <strong>SAR <?= number_format($trend_average, 2) ?></strong>
+                        <small><?= number_format($trend_count) ?> months tracked</small>
+                    </div>
+                    <div class="trend-insight">
+                        <span>Peak Month</span>
+                        <strong><?= htmlspecialchars($trend_peak_label) ?></strong>
+                        <small>SAR <?= number_format($trend_peak_value, 2) ?></small>
+                    </div>
+                    <div class="trend-insight">
+                        <span>Lowest Month</span>
+                        <strong><?= htmlspecialchars($trend_low_label) ?></strong>
+                        <small>SAR <?= number_format($trend_low_value, 2) ?></small>
+                    </div>
+                    <div class="trend-insight <?= $trend_change_amount >= 0 ? 'is-up' : 'is-down' ?>">
+                        <span>Latest Change</span>
+                        <strong><?= $trend_change_amount >= 0 ? '+' : '-' ?>SAR <?= number_format(abs($trend_change_amount), 2) ?></strong>
+                        <small><?= $trend_change_percent >= 0 ? '+' : '-' ?><?= number_format(abs($trend_change_percent), 1) ?>% vs previous</small>
+                    </div>
+                </div>
+                <div class="chart-canvas-box trend-canvas-box">
                     <canvas id="trendChart"></canvas>
+                </div>
+                <div class="trend-legend-note">
+                    <span><span class="trend-dot" style="background:#2563eb"></span>Spend</span>
+                    <span><span class="trend-dot" style="background:#0f766e"></span>6M average</span>
+                    <span><span class="trend-dot" style="background:#f59e0b"></span>Month change</span>
                 </div>
             </div>
         </div>
@@ -1238,7 +1632,11 @@ $month_values = array_map(function($value) {
                             $petro_segment_width = max(0, min(100, ($petro_total / $category_totals[$table]) * $percent));
                         }
                     ?>
-                    <div class="category-row">
+                    <?php
+                        $category_users = $category_user_breakdown[$table] ?? [];
+                        $category_user_count = count($category_users);
+                    ?>
+                    <div class="category-row" tabindex="0" aria-label="<?= htmlspecialchars($meta['label']) ?> category user breakdown">
                         <div class="category-name">
                             <i class="bi <?= htmlspecialchars($meta['icon']) ?>"></i>
                             <span class="category-label-actions">
@@ -1254,6 +1652,24 @@ $month_values = array_map(function($value) {
                             </span>
                         </div>
                         <div class="category-amount">SAR <?= number_format($category_totals[$table], 2) ?></div>
+                        <div class="category-hover-card no-print" role="tooltip">
+                            <div class="category-hover-title">
+                                <span><?= htmlspecialchars($meta['label']) ?> Users</span>
+                                <span class="category-hover-count"><?= number_format($category_user_count) ?> user<?= $category_user_count === 1 ? '' : 's' ?></span>
+                            </div>
+                            <?php if (!empty($category_users)): ?>
+                            <div class="category-hover-list">
+                                <?php foreach ($category_users as $category_user => $category_amount): ?>
+                                <div class="category-hover-item">
+                                    <span><i class="bi bi-person-circle me-1 text-primary"></i><?= htmlspecialchars($category_user) ?></span>
+                                    <strong>SAR <?= number_format($category_amount, 2) ?></strong>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php else: ?>
+                            <div class="category-hover-empty">No users for this category in the selected filter.</div>
+                            <?php endif; ?>
+                        </div>
                         <?php if ($table === 'fuel_expense'): ?>
                             <div class="bar-track bar-stack">
                                 <?php if ($fuel_segment_width > 0): ?>
@@ -1821,24 +2237,68 @@ document.addEventListener('click', function(event) {
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const moneyTick = value => 'SAR ' + Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const trendValues = <?= json_encode($month_values) ?>;
+const trendAverageValues = <?= json_encode($trend_average_values) ?>;
+const trendChangeValues = <?= json_encode($trend_change_values) ?>;
 const trendChart = new Chart(document.getElementById('trendChart'), {
     type: 'bar',
     data: {
         labels: <?= json_encode($month_labels) ?>,
         datasets: [{
             label: 'Expenses',
-            data: <?= json_encode($month_values) ?>,
+            data: trendValues,
             backgroundColor: '#2563eb',
-            borderRadius: 6
+            borderRadius: 6,
+            order: 3
+        }, {
+            type: 'line',
+            label: '6M Average',
+            data: trendAverageValues,
+            borderColor: '#0f766e',
+            backgroundColor: 'rgba(15, 118, 110, .12)',
+            borderWidth: 2,
+            borderDash: [6, 5],
+            pointRadius: 0,
+            tension: 0.25,
+            order: 1
+        }, {
+            type: 'line',
+            label: 'Month Change',
+            data: trendChangeValues,
+            yAxisID: 'changeAxis',
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, .12)',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            tension: 0.3,
+            order: 0
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: {
+                display: true,
+                position: 'bottom',
+                labels: { boxWidth: 12, font: { size: 10, weight: 'bold' } }
+            },
+            tooltip: {
+                callbacks: {
+                    label: context => `${context.dataset.label}: ${moneyTick(context.parsed.y)}`
+                }
+            }
+        },
         scales: {
             x: { ticks: { font: { size: 10 } } },
-            y: { ticks: { callback: moneyTick, font: { size: 10 } }, beginAtZero: true }
+            y: { ticks: { callback: moneyTick, font: { size: 10 } }, beginAtZero: true },
+            changeAxis: {
+                position: 'right',
+                grid: { drawOnChartArea: false },
+                ticks: { callback: moneyTick, font: { size: 10 } }
+            }
         }
     }
 });
@@ -1860,8 +2320,8 @@ const categoryChart = new Chart(document.getElementById('categoryChart'), {
     }
 });
 window.addEventListener('beforeprint', () => {
-    trendChart.resize(500, 186);
-    categoryChart.resize(500, 186);
+    trendChart.resize(500, 144);
+    categoryChart.resize(500, 182);
 });
 window.addEventListener('afterprint', () => {
     trendChart.resize();
