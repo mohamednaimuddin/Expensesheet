@@ -240,15 +240,8 @@ $current_month_label = date('M Y');
             </div>
         </div>
         <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-3">
-    <div class="glass-card card-utility h-100 position-relative"
-         style="pointer-events:none; opacity:0.7;">
-
-        <div class="position-absolute top-50 start-50 translate-middle">
-            <span class="badge bg-danger px-3 py-2 fs-6">
-                Coming Soon
-            </span>
-        </div>
-
+    <div class="glass-card card-utility h-100"
+                 onclick="window.location.href='analytics.php'" style="cursor:pointer;">
         <div class="card-body text-center">
             <i class="bi bi-bar-chart-line utility-icon"></i>
             <h5 class="card-title">Analytics</h5>
