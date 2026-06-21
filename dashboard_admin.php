@@ -240,15 +240,8 @@ $current_month_label = date('M Y');
             </div>
         </div>
         <div class="col-lg-3 col-md-6 col-sm-6 col-12 mb-3">
-    <div class="glass-card card-utility h-100 position-relative"
-         style="pointer-events:none; opacity:0.7;">
-
-        <div class="position-absolute top-50 start-50 translate-middle">
-            <span class="badge bg-danger px-3 py-2 fs-6">
-                Coming Soon
-            </span>
-        </div>
-
+    <div class="glass-card card-utility h-100"
+                 onclick="window.location.href='analytics.php'" style="cursor:pointer;">
         <div class="card-body text-center">
             <i class="bi bi-bar-chart-line utility-icon"></i>
             <h5 class="card-title">Analytics</h5>
@@ -310,7 +303,16 @@ $current_month_label = date('M Y');
                                     <span class="stat-value <?php echo $sum['balance'] >= 0 ? 'balance-pos' : 'balance-neg'; ?>">SAR <?php echo number_format($sum['balance'], 2); ?></span>
                                 </div>
                             </div>
-                            <div class="card-footer-link">View Report <i class="bi bi-arrow-right-short"></i></div>
+                            <div class="d-flex gap-2 mt-3" onclick="event.stopPropagation();">
+                                <a href="user_report.php?username=<?php echo urlencode($user['username']); ?>" class="btn btn-sm btn-primary flex-fill">View Report</a>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-warning flex-fill"
+                                    onclick='recalculateUser(<?php echo json_encode($user["username"]); ?>, <?php echo json_encode($current_month); ?>, this);'
+                                >
+                                    Re-Calculate
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -408,6 +410,41 @@ function showLogoutPopup(event) {
 
 function closeLogoutPopup() {
     document.getElementById("logoutPopup").style.display = "none";
+}
+
+function recalculateUser(username, month, buttonEl) {
+    if (!confirm('Re-calculate carrydown for ' + username + '?')) return;
+
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.dataset.oldText = buttonEl.textContent;
+        buttonEl.textContent = 'Recalculating...';
+    }
+
+    showPageLoader();
+
+    var url = 'user_report.php?username=' + encodeURIComponent(username)
+        + '&month=' + encodeURIComponent(month)
+        + '&recalculate=1';
+
+    fetch(url, { credentials: 'same-origin' })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Failed to recalculate for ' + username);
+            }
+            return response.text();
+        })
+        .then(function() {
+            window.location.reload();
+        })
+        .catch(function(error) {
+            hidePageLoader();
+            alert(error.message || 'Recalculation failed.');
+            if (buttonEl) {
+                buttonEl.disabled = false;
+                buttonEl.textContent = buttonEl.dataset.oldText || 'Re-Calculate';
+            }
+        });
 }
 </script>
 </body>

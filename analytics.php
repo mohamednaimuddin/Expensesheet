@@ -36,13 +36,13 @@ $expense_tables = [
     'fuel_expense' => ['label' => 'Fuel', 'icon' => 'bi-fuel-pump', 'color' => '#2563eb'],
     'food_expense' => ['label' => 'Food', 'icon' => 'bi-egg-fried', 'color' => '#16a34a'],
     'room_expense' => ['label' => 'Room', 'icon' => 'bi-house-door', 'color' => '#9333ea'],
-    'other_expense' => ['label' => 'Other', 'icon' => 'bi-grid', 'color' => '#64748b'],
     'tools_expense' => ['label' => 'Tools', 'icon' => 'bi-tools', 'color' => '#ea580c'],
-    'labour_expense' => ['label' => 'Labour', 'icon' => 'bi-person-workspace', 'color' => '#dc2626'],
-    'accessories_expense' => ['label' => 'Accessories', 'icon' => 'bi-bag', 'color' => '#0891b2'],
+    'labour_expense' => ['label' => 'Labour Charge', 'icon' => 'bi-person-workspace', 'color' => '#dc2626'],
+    'accessories_expense' => ['label' => 'Material Cost', 'icon' => 'bi-bag', 'color' => '#0891b2'],
     'tv_expense' => ['label' => 'TV', 'icon' => 'bi-tv', 'color' => '#7c3aed'],
-    'vehicle_expense' => ['label' => 'Vehicle', 'icon' => 'bi-truck', 'color' => '#0f766e'],
-    'taxi_expense' => ['label' => 'Taxi', 'icon' => 'bi-taxi-front', 'color' => '#ca8a04']
+    'vehicle_expense' => ['label' => 'Vehicle Maintenance', 'icon' => 'bi-truck', 'color' => '#0f766e'],
+    'taxi_expense' => ['label' => 'Taxi', 'icon' => 'bi-taxi-front', 'color' => '#ca8a04'],
+    'other_expense' => ['label' => 'Other', 'icon' => 'bi-grid', 'color' => '#64748b']
 ];
 
 $column_cache = [];
@@ -856,6 +856,7 @@ $month_values = array_map(function($value) {
             zoom: 1;
         }
         .navbar, .filter-card, .no-print { display: none !important; }
+        .page-loader { display: none !important; }
         .page-shell {
             max-width: none;
             width: 100%;
@@ -1073,6 +1074,18 @@ $month_values = array_map(function($value) {
 </style>
 </head>
 <body>
+<div class="page-loader" id="pageLoader" aria-live="polite" aria-label="Loading analytics">
+    <div class="loader-container">
+        <div class="brand-loader">
+            <img src="assets/visionnew.png" alt="Loading...">
+            <div class="dots-loader" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+</div>
 <nav class="navbar navbar-expand-lg">
     <div class="container-fluid page-shell py-2">
         <a class="navbar-brand d-flex align-items-center" href="<?= htmlspecialchars($back_url) ?>">
@@ -1081,7 +1094,7 @@ $month_values = array_map(function($value) {
         </a>
         <div class="navbar-nav ms-auto d-flex align-items-center">
             <span class="navbar-text me-3"><i class="bi bi-person-circle"></i> <?= htmlspecialchars(ucfirst($username)) ?></span>
-            <a class="btn btn-sm btn-outline-light" href="<?= htmlspecialchars($back_url) ?>"><i class="bi bi-arrow-left"></i> Back</a>
+            <a class="btn btn-sm btn-outline-light" href="<?= htmlspecialchars($back_url) ?>"><i class="bi bi-house"></i> Home</a>
         </div>
     </div>
 </nav>
@@ -1093,9 +1106,9 @@ $month_values = array_map(function($value) {
             <p>Track spending trends, category mix, advances, and recent expense movement.</p>
         </div>
         <div class="d-flex gap-2 no-print">
-            <button class="btn btn-outline-dark" type="button" style="pointer-events: none;">
-    <i class="bi bi-printer"></i> Print A4
-</button>
+            <button class="btn btn-outline-dark" type="button" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print A4
+            </button>
             <a class="btn btn-primary" href="<?= htmlspecialchars($report_url) ?>"><i class="bi bi-table"></i> Expense Report</a>
         </div>
     </section>
@@ -1257,10 +1270,10 @@ $month_values = array_map(function($value) {
                         <?php if ($table === 'fuel_expense'): ?>
                             <div class="bar-track bar-stack">
                                 <?php if ($fuel_segment_width > 0): ?>
-                                <div class="bar-segment <?= $petro_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Fuel: SAR <?= htmlspecialchars(number_format($fuel_base_total, 2)) ?>" style="width: <?= round($fuel_segment_width, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div>
+                                <div class="bar-segment <?= $petro_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Fuel: SAR <?= htmlspecialchars(number_format($fuel_base_total, 2)) ?>" style="width: <?= round($fuel_segment_width, 2) ?>%; background: #94a3b8"></div>
                                 <?php endif; ?>
                                 <?php if ($petro_segment_width > 0): ?>
-                                <div class="bar-segment <?= $fuel_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Petro: SAR <?= htmlspecialchars(number_format($petro_total, 2)) ?>" style="width: <?= round($petro_segment_width, 2) ?>%; background: #94a3b8"></div>
+                                <div class="bar-segment <?= $fuel_segment_width <= 0 ? 'bar-segment-only' : '' ?>" title="Petro: SAR <?= htmlspecialchars(number_format($petro_total, 2)) ?>" style="width: <?= round($petro_segment_width, 2) ?>%; background: <?= htmlspecialchars($meta['color']) ?>"></div>
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
@@ -1867,6 +1880,51 @@ window.addEventListener('afterprint', () => {
     trendChart.resize();
     categoryChart.resize();
 });
+</script>
+<script>
+(function() {
+    function getPageLoader() {
+        return document.getElementById('pageLoader');
+    }
+
+    function hidePageLoader() {
+        const loader = getPageLoader();
+        if (!loader) return;
+        loader.classList.add('hidden');
+    }
+
+    function showPageLoader() {
+        const loader = getPageLoader();
+        if (!loader) return;
+        loader.classList.remove('hidden');
+    }
+
+    window.addEventListener('load', function() {
+        hidePageLoader();
+    });
+
+    window.addEventListener('pageshow', function() {
+        hidePageLoader();
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('a[href]:not([href^="#"]):not([href^="javascript"])').forEach(function(link) {
+            link.addEventListener('click', function(event) {
+                if (event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1) return;
+                const target = link.getAttribute('target');
+                if (target && target === '_blank') return;
+                showPageLoader();
+            });
+        });
+
+        const filterForm = document.querySelector('.filter-card');
+        if (filterForm) {
+            filterForm.addEventListener('submit', showPageLoader);
+        }
+    });
+
+    window.setTimeout(hidePageLoader, 3500);
+})();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
