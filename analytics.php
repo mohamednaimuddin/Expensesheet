@@ -265,6 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['edit_petro']) || iss
 $category_totals = [];
 $category_counts = [];
 $category_user_breakdown = [];
+$category_user_details = [];
 $pending_bills = 0;
 $total_expense = 0.0;
 $total_records = 0;
@@ -298,9 +299,30 @@ foreach ($expense_tables as $table => $meta) {
     while ($row = $res->fetch_assoc()) {
         $user_name = trim($row['username'] ?? '');
         if ($user_name !== '') {
-            $category_user_breakdown[$table][$user_name] = ($category_user_breakdown[$table][$user_name] ?? 0) + floatval($row['total']);
+            $category_user_breakdown[$table][$user_name] = ($category_user_breakdown[$table][$user_name] ?? 0) + floatval($row['total'] ?? 0);
         }
     }
+
+    $category_user_details[$table] = [];
+
+$detail_description = table_has_column($conn, $table, 'description') ? 'e.description' : (table_has_column($conn, $table, 'service') ? 'e.service' : "''");
+if ($table === 'taxi_expense' && table_has_column($conn, $table, 'from_location') && table_has_column($conn, $table, 'to_location')) {
+    $detail_description = "CONCAT(e.from_location, ' to ', e.to_location)";
+}
+
+$stmt = $conn->prepare("SELECT e.username, $detail_description AS description, e.amount, e.date FROM `$table` e $join WHERE $where ORDER BY e.date DESC, e.id DESC");
+$res = bind_and_execute($stmt, $types, $params);
+
+while ($row = $res->fetch_assoc()) {
+    $detail_user = trim($row['username'] ?? '');
+    if ($detail_user !== '') {
+        $category_user_details[$table][$detail_user][] = [
+            'date' => date('d-m-Y', strtotime($row['date'])),
+            'description' => trim($row['description'] ?? ''),
+            'amount' => floatval($row['amount'] ?? 0)
+        ];
+    }
+}
 
     if (table_has_column($conn, $table, 'bill')) {
         $stmt = $conn->prepare("SELECT COUNT(*) AS pending FROM `$table` e $join WHERE $where AND (e.bill IS NULL OR TRIM(e.bill)='' OR LOWER(e.bill) IN ('no','pending','n','0'))");
@@ -1033,9 +1055,93 @@ foreach ($month_values as $index => $value) {
         .filter-card.has-company .analytics-filter {
             grid-template-columns: 1fr;
         }
-        .filter-actions {
-            grid-template-columns: 1fr 46px;
+            .filter-actions {
+                grid-template-columns: 1fr 46px;
+            }
         }
+    .category-user-btn {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        padding: 6px 4px;
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .category-user-btn:hover {
+        background: #eff6ff;
+    }
+
+    .user-detail-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .user-detail-row {
+        display: grid;
+        grid-template-columns: 92px 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f8fafc;
+    }
+
+    .user-detail-date {
+        font-weight: 800;
+        color: #334155;
+        font-size: .82rem;
+    }
+
+    .user-detail-desc {
+        color: #64748b;
+        font-weight: 700;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .user-detail-amount {
+        font-weight: 900;
+        color: #0f172a;
+        white-space: nowrap;
+    }   
+
+    .user-detail-summary {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+        padding: 12px;
+        border-radius: 8px;
+        background: #eff6ff;
+        color: #0f172a;
+        font-weight: 800;
+    }
+
+    .user-detail-pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    .user-detail-pagination button {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #0f172a;
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-weight: 800;
+    }
+
+    .user-detail-pagination button:disabled {
+        opacity: .45;
+        cursor: not-allowed;
     }
     @media print {
         @page { size: A4 landscape; margin: 4mm; }
@@ -1660,10 +1766,10 @@ foreach ($month_values as $index => $value) {
                             <?php if (!empty($category_users)): ?>
                             <div class="category-hover-list">
                                 <?php foreach ($category_users as $category_user => $category_amount): ?>
-                                <div class="category-hover-item">
+                                <button class="category-hover-item category-user-btn" type="button" onclick="openCategoryUserDetails('<?= htmlspecialchars($table, ENT_QUOTES) ?>', '<?= htmlspecialchars($category_user, ENT_QUOTES) ?>', '<?= htmlspecialchars($meta['label'], ENT_QUOTES) ?>', event)">
                                     <span><i class="bi bi-person-circle me-1 text-primary"></i><?= htmlspecialchars($category_user) ?></span>
                                     <strong>SAR <?= number_format($category_amount, 2) ?></strong>
-                                </div>
+                                </button>
                                 <?php endforeach; ?>
                             </div>
                             <?php else: ?>
@@ -1865,7 +1971,26 @@ foreach ($month_values as $index => $value) {
         </form>
     </div>
 </div>
-
+            <!--modal for category user details  -->
+            <div class="petro-modal no-print" id="categoryUserDetailModal">
+    <div class="petro-dialog petro-dialog-wide">
+        <div class="petro-dialog-head">
+            <h5 id="categoryUserDetailTitle">User Expenses</h5>
+            <button class="petro-close" type="button" onclick="closeCategoryUserDetails()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="petro-dialog-body">
+            <div id="categoryUserDetailSummary" class="user-detail-summary"></div>
+            <div id="categoryUserDetailList" class="user-detail-list"></div>
+            <div class="user-detail-pagination">
+                <button type="button" id="userDetailPrev" onclick="changeUserDetailPage(-1)">Previous</button>
+                <span id="userDetailPageInfo"></span>
+                <button type="button" id="userDetailNext" onclick="changeUserDetailPage(1)">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
 function openPetroModal() {
     const modal = document.getElementById('petroModal');
@@ -2329,5 +2454,89 @@ window.addEventListener('afterprint', () => {
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const categoryUserDetails = <?= json_encode($category_user_details, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+let activeUserDetails = [];
+let activeUserDetailPage = 1;
+const userDetailsPerPage = 5;
+
+function openCategoryUserDetails(table, username, categoryLabel, event) {
+    if (event?.currentTarget && typeof event.currentTarget.blur === 'function') {
+        // Prevent focus-within from keeping old hover cards open behind the modal.
+        event.currentTarget.blur();
+    }
+
+    activeUserDetails = categoryUserDetails?.[table]?.[username] || [];
+    activeUserDetailPage = 1;
+
+    const total = activeUserDetails.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    document.getElementById('categoryUserDetailTitle').textContent = `${username} - ${categoryLabel}`;
+    document.getElementById('categoryUserDetailSummary').innerHTML = `
+        <span>${activeUserDetails.length} transaction${activeUserDetails.length === 1 ? '' : 's'}</span>
+        <span>SAR ${total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+    `;
+
+    renderUserDetailPage();
+    document.getElementById('categoryUserDetailModal').classList.add('is-open');
+}
+
+function closeCategoryUserDetails() {
+    document.getElementById('categoryUserDetailModal').classList.remove('is-open');
+}
+
+function changeUserDetailPage(direction) {
+    const totalPages = Math.max(1, Math.ceil(activeUserDetails.length / userDetailsPerPage));
+    activeUserDetailPage += direction;
+
+    if (activeUserDetailPage < 1) activeUserDetailPage = 1;
+    if (activeUserDetailPage > totalPages) activeUserDetailPage = totalPages;
+
+    renderUserDetailPage();
+}
+
+function renderUserDetailPage() {
+    const list = document.getElementById('categoryUserDetailList');
+    const pageInfo = document.getElementById('userDetailPageInfo');
+    const prevBtn = document.getElementById('userDetailPrev');
+    const nextBtn = document.getElementById('userDetailNext');
+
+    const totalPages = Math.max(1, Math.ceil(activeUserDetails.length / userDetailsPerPage));
+    const start = (activeUserDetailPage - 1) * userDetailsPerPage;
+    const pageItems = activeUserDetails.slice(start, start + userDetailsPerPage);
+
+    if (pageItems.length === 0) {
+        list.innerHTML = `<div class="empty-state">No expense details found.</div>`;
+    } else {
+        list.innerHTML = pageItems.map(item => `
+            <div class="user-detail-row">
+                <div class="user-detail-date">${escapeHtml(item.date || '-')}</div>
+                <div class="user-detail-desc">${escapeHtml(item.description || 'No description')}</div>
+                <div class="user-detail-amount">SAR ${Number(item.amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            </div>
+        `).join('');
+    }
+
+    pageInfo.textContent = `Page ${activeUserDetailPage} of ${totalPages}`;
+    prevBtn.disabled = activeUserDetailPage <= 1;
+    nextBtn.disabled = activeUserDetailPage >= totalPages;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+document.getElementById('categoryUserDetailModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeCategoryUserDetails();
+    }
+});
+</script>
 </body>
 </html>
