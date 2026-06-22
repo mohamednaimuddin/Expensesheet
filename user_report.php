@@ -302,7 +302,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_carrydown'])) {
 // ----------------------
 // Handle Recalculate Carrydown (current month and all future months)
 // ----------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry'])) {
+$trigger_recalculate =
+    ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry'])) ||
+    (isset($_GET['recalculate']) && $_GET['recalculate'] === '1');
+
+if ($trigger_recalculate) {
     // Delete carrydown for current month and all future months for this user
     $stmt = $conn->prepare("DELETE FROM carry_down WHERE username=? AND DATE_FORMAT(created_at,'%Y-%m') >= ?");
     $stmt->bind_param("ss", $username, $current_month);
@@ -359,31 +363,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_prev_carry']))
         $recalc_month = date("Y-m", strtotime("$recalc_first_day +1 month"));
     }
     
-    header("Location: " . $_SERVER['REQUEST_URI']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        header("Location: " . $_SERVER['REQUEST_URI']);
+    } else {
+        $redirect_query = ['username' => $username, 'recalculated' => '1'];
+        foreach (['month', 'region', 'type', 'page'] as $filter_key) {
+            if (isset($_GET[$filter_key]) && $_GET[$filter_key] !== '') {
+                $redirect_query[$filter_key] = $_GET[$filter_key];
+            }
+        }
+        header("Location: user_report.php?" . http_build_query($redirect_query));
+    }
     exit();
 }
 
-// Auto-insert carrydown if missing
+// Read carrydown value — no auto-write on normal page load.
+// Writing only happens via the explicit Re-Calculate action above.
 if (!$carrydown_exists) {
-    $last_month_balance = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
-
-    $carrydown_desc = "Carryforward from " . date("M Y", strtotime($first_day_prev));
-    $stmt = $conn->prepare("INSERT INTO carry_down (username, amount, description, created_at) VALUES (?, ?, ?, NOW())");
-    $stmt->bind_param("sds", $username, $last_month_balance, $carrydown_desc);
-    $stmt->execute();
-
-    $carrydown_value = $last_month_balance;
+    // No entry yet: calculate on-the-fly for display only (do NOT insert).
+    $carrydown_value = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
 } else {
     $carrydown_value = floatval($current_month_carry['amount']);
-    $carrydown_desc  = $current_month_carry['description'];
-    $expected_carrydown = calculate_carryforward_from_previous_month($conn, $username, $first_day_prev, $last_day_prev, $prev_month);
-
-    if (strpos($carrydown_desc, 'Carryforward from ') === 0 && abs($carrydown_value - $expected_carrydown) >= 0.005) {
-        $stmt = $conn->prepare("UPDATE carry_down SET amount=? WHERE id=?");
-        $stmt->bind_param("di", $expected_carrydown, $current_month_carry['id']);
-        $stmt->execute();
-        $carrydown_value = $expected_carrydown;
-    }
 }
 
 // Assign to total_carry for HTML display
@@ -474,6 +474,12 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     <h2>Expense Report</h2>
     <div style="text-align:right; font-weight:bold;">EX: <span id="invoice_no"><?php echo $invoice_no; ?></span></div>
 </div>
+
+<?php if (isset($_GET['recalculated']) && $_GET['recalculated'] === '1'): ?>
+    <div class="alert alert-success py-2 px-3" role="alert">
+        Carrydown was recalculated successfully.
+    </div>
+<?php endif; ?>
 
 <form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>">
