@@ -669,7 +669,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     }
     @page {
         size: A4 portrait;
-        margin: 12mm 10mm 14mm;
+        margin: 0;
     }
     html, body {
         overflow: visible !important;
@@ -677,6 +677,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     }
     body {
         width: 100%;
+        padding: 8mm 4mm 10mm !important;
     }
     .page-loader,
     .report-toolbar,
@@ -694,7 +695,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     .report-footer,
     .table-responsive.d-none.d-print-block,
     .total-summary {
-        width: 90%;
+        width: 98.5%;
         margin-left: auto !important;
         margin-right: auto !important;
     }
@@ -767,6 +768,7 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     }
     table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: collapse;
         border: 1px solid #4b5563 !important;
         page-break-inside: auto;
@@ -784,13 +786,37 @@ th, td { border: 0.5px solid black; padding: 4px 6px; text-align: left; word-wra
     }
     th, td {
         border: 1px solid #4b5563 !important;
-        padding: 7px 8px !important;
-        font-size: 11px;
+        padding: 6px 6px !important;
+        font-size: 10.5px;
         text-align: left;
         vertical-align: middle;
         word-wrap: break-word;
+        overflow-wrap: break-word;
         color: #111827 !important;
     }
+    .table-responsive.d-none.d-print-block thead th:nth-child(1),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(1) { width: 5% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(2),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(2) { width: 7% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(3),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(3) { width: 8% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(4),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(4) { width: 9% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(5),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(5) { width: 12% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(6),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(6) { width: 10% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(7),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(7) { width: 10% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(8),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(8) {
+        width: 23% !important;
+        overflow-wrap: anywhere;
+    }
+    .table-responsive.d-none.d-print-block thead th:nth-child(9),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(9) { width: 8% !important; }
+    .table-responsive.d-none.d-print-block thead th:nth-child(10),
+    .table-responsive.d-none.d-print-block tbody td:nth-child(10) { width: 8% !important; }
     td.text-center,
     th[style*='text-align:center'] {
         text-align: center !important;

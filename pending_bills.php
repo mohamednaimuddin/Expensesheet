@@ -1,4 +1,4 @@
-<?php 
+<?php
 session_start();
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
@@ -7,24 +7,22 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superad
 
 include 'config.php';
 
-// --- Handle AJAX update for bills ---
 if (!empty($_POST['update_bill']) && isset($_POST['id'], $_POST['category'])) {
     $id = (int)$_POST['id'];
     $category = $_POST['category'];
     $bill_value = $_POST['update_bill'] === 'yes' ? 'Yes' : 'No';
 
     $table_map = [
-    'Fuel'        => 'fuel_expense',
-    'Room'        => 'room_expense',
-    'Other'       => 'other_expense',
-    'Tools'       => 'tools_expense',
-    'Labour'      => 'labour_expense',
-    'Accessories' => 'accessories_expense',
-    'Tv'          => 'tv_expense',
-    'Vehicle'     => 'vehicle_expense',
-    'Taxi'        => 'taxi_expense'
+        'Fuel'        => 'fuel_expense',
+        'Room'        => 'room_expense',
+        'Other'       => 'other_expense',
+        'Tools'       => 'tools_expense',
+        'Labour'      => 'labour_expense',
+        'Accessories' => 'accessories_expense',
+        'Tv'          => 'tv_expense',
+        'Vehicle'     => 'vehicle_expense',
+        'Taxi'        => 'taxi_expense'
     ];
-
 
     if (isset($table_map[$category])) {
         $stmt = $conn->prepare("UPDATE {$table_map[$category]} SET bill=? WHERE id=?");
@@ -35,16 +33,16 @@ if (!empty($_POST['update_bill']) && isset($_POST['id'], $_POST['category'])) {
     }
 }
 
-// --- Initialize filters ---
-$month_year_filter = $_GET['month_year'] ?? '';
+$month_year_filter = $_GET['month_year'] ?? date('Y-m');
 $username_filter = trim($_GET['username'] ?? '');
 $region_filter = $_GET['region'] ?? 'All';
+$per_page = isset($_GET['per_page']) ? max(10, min(200, (int)$_GET['per_page'])) : 25;
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 
-// --- Build SQL filter ---
 $filter_sql = '';
 if ($month_year_filter) {
     $parts = explode('-', $month_year_filter);
-    if (count($parts) == 2) {
+    if (count($parts) === 2) {
         $year = (int)$parts[0];
         $month = (int)$parts[1];
         $filter_sql .= " AND YEAR(date) = $year AND MONTH(date) = $month";
@@ -61,9 +59,8 @@ if ($region_filter !== '' && $region_filter !== 'All') {
     $filter_sql .= " AND region='$region_safe'";
 }
 
-// --- Fetch unique usernames ---
 $usernames = [];
-foreach (['fuel_expense','room_expense','other_expense','tools_expense','labour_expense', 'accessories_expense', 'tv_expense','vehicle_expense','taxi_expense'] as $table) {
+foreach (['fuel_expense','room_expense','other_expense','tools_expense','labour_expense','accessories_expense','tv_expense','vehicle_expense','taxi_expense'] as $table) {
     $res = $conn->query("SELECT DISTINCT username FROM $table");
     if ($res) {
         while ($row = $res->fetch_assoc()) {
@@ -73,7 +70,6 @@ foreach (['fuel_expense','room_expense','other_expense','tools_expense','labour_
 }
 ksort($usernames);
 
-// --- Fetch pending bills ---
 $query = "
     SELECT 'Fuel' AS expense_category, id, date, division, company, store, location, description, amount, bill
     FROM fuel_expense
@@ -117,7 +113,7 @@ $query = "
 
     UNION ALL
 
-    SELECT 'Vehicle' AS expense_category, ve.id, ve.date, '' AS division, '' AS company, '' AS store, '' AS location, 
+    SELECT 'Vehicle' AS expense_category, ve.id, ve.date, '' AS division, '' AS company, '' AS store, '' AS location,
     CONCAT(IFNULL(v.model,''), ' - ', IFNULL(v.number_plate,''), ' - ', ve.service, IF(ve.description IS NOT NULL, CONCAT(' - ', ve.description), '')) AS description,
     ve.amount, ve.bill
     FROM vehicle_expense ve
@@ -126,8 +122,8 @@ $query = "
 
     UNION ALL
 
-    SELECT 'Taxi' AS expense_category, id, date, division COLLATE utf8mb4_unicode_ci AS division, company COLLATE utf8mb4_unicode_ci AS company, store COLLATE utf8mb4_unicode_ci AS store, '' AS location, 
-    CONCAT(from_location, ' → ', to_location) COLLATE utf8mb4_unicode_ci AS description,
+    SELECT 'Taxi' AS expense_category, id, date, division COLLATE utf8mb4_unicode_ci AS division, company COLLATE utf8mb4_unicode_ci AS company, store COLLATE utf8mb4_unicode_ci AS store, '' AS location,
+    CONCAT(from_location, ' to ', to_location) COLLATE utf8mb4_unicode_ci AS description,
     amount, bill COLLATE utf8mb4_unicode_ci AS bill
     FROM taxi_expense
     WHERE (bill IS NULL OR TRIM(bill) = '' OR LOWER(bill) IN ('no','pending','n','0')) $filter_sql
@@ -137,284 +133,257 @@ $query = "
 
 $result = $conn->query($query);
 if (!$result) die("Query failed: " . $conn->error);
-?>
 
+$pending_rows = [];
+$total_amount = 0.0;
+while ($row = $result->fetch_assoc()) {
+    $pending_rows[] = $row;
+    $total_amount += (float)$row['amount'];
+}
+
+$total_records = count($pending_rows);
+$total_pages = max(1, (int)ceil($total_records / $per_page));
+$page = min($page, $total_pages);
+$offset = ($page - 1) * $per_page;
+$paged_rows = array_slice($pending_rows, $offset, $per_page);
+$page_amount = array_sum(array_map(function($row) {
+    return (float)$row['amount'];
+}, $paged_rows));
+
+function build_pending_query($params = []) {
+    $current = $_GET;
+    unset($current['page']);
+    $merged = array_merge($current, $params);
+    return http_build_query($merged);
+}
+
+$selected_month_label = date('F Y', strtotime($month_year_filter . '-01'));
+$back_url = $_SESSION['role'] === 'superadmin' ? 'dashboard_superadmin.php' : 'dashboard_admin.php';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pending Bills | VisionAngles</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <link rel="icon" type="image/png" href="assets/vision.ico">
-
+<link href="assets/vendor/bootstrap-5.0.2/css/bootstrap.min.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<link href="assets/user_report.css" rel="stylesheet">
 <style>
-body { background: #f8f9fa; }
-.pending { background-color: #fff3cd !important; }
-
+.pending-row td { background: rgba(254,243,199,0.65) !important; }
+.pending-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(245,158,11,0.13);
+    border: 1px solid rgba(245,158,11,0.30);
+    color: #92400e;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.bill-status-cell { min-width: 84px; }
+.confirm-bill-modal .modal-content {
+    border: 1px solid var(--glass-brd);
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(15,23,42,0.18);
+}
+.confirm-bill-modal .modal-header,
+.confirm-bill-modal .modal-footer {
+    border-color: rgba(15,23,42,0.08);
+}
+.confirm-bill-modal .modal-title {
+    color: var(--ink-900);
+    font-weight: 800;
+}
+.confirm-bill-modal .modal-footer {
+    gap: 8px;
+}
+@page {
+    size: A4 landscape;
+    margin: 10mm 12mm;
+}
 @media print {
-    /* Reset and optimize page layout */
-    * { box-sizing: border-box; }
-    body, html { 
-        height: auto !important; 
-        margin: 0 !important; 
-        padding: 0 !important; 
-        background: #fff !important; 
-        -webkit-print-color-adjust: exact; 
-        font-size: 11px !important;
-        line-height: 1.2 !important;
+    html, body {
+        width: 100%;
+        overflow: visible !important;
     }
-    
-    /* Hide non-essential elements */
-    #filterForm, .action-btn, .print-btn, .back-btn, .btn, button { display: none !important; }
-    .container { margin: 0 !important; padding: 5mm !important; max-width: 100% !important; }
-    .my-4, .mb-4, .mb-3, .mb-2 { margin: 0 !important; }
-    
-    /* Optimize header */
-    .print-header { margin-bottom: 8px !important; page-break-inside: avoid; text-align: center; }
-    .print-header img { max-height: 50px !important; }
-    .print-header h2 { margin: 5px 0 !important; font-size: 18px !important; font-weight: bold; }
-    
-    /* Optimize info section */
-    .d-flex.justify-content-between { 
-        margin-bottom: 8px !important; 
-        font-size: 10px !important;
-        page-break-inside: avoid;
-        border-bottom: 1px solid #ccc;
-        padding-bottom: 5px;
-    }
-    
-    /* Optimize table layout */
-    .print-section { 
-        display: block !important; 
-        page-break-inside: auto; 
-        margin: 0 !important; 
+    body {
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+        margin: 0 !important;
         padding: 0 !important;
-    }
-    .table-responsive { 
-        overflow: visible !important; 
-        page-break-inside: auto; 
-        margin: 0 !important;
-    }
-    
-    /* Table styling - A4 optimized */
-    table { 
-        width: 100% !important; 
-        border-collapse: collapse !important; 
-        table-layout: fixed !important; 
-        font-size: 9px !important; 
-        page-break-inside: auto !important;
-        margin: 0 !important;
-    }
-    
-    th, td { 
-        border: 0.5px solid #000 !important; 
-        padding: 3px 4px !important; 
-        word-wrap: break-word !important; 
-        white-space: normal !important;
-        vertical-align: top !important;
-        overflow: hidden !important;
-    }
-    
-    /* Table header */
-    thead { display: table-header-group !important; }
-    thead th { 
-        background-color: #f0f0f0 !important; 
-        font-weight: bold !important;
-        font-size: 9px !important;
-        text-align: center !important;
-        color: #000 !important;
-        -webkit-print-color-adjust: exact !important;
-    }
-    
-    /* Column specific widths for A4 */
-    th:nth-child(1), td:nth-child(1) { width: 6% !important; } /* SI No */
-    th:nth-child(2), td:nth-child(2) { width: 9% !important; } /* Date */
-    th:nth-child(3), td:nth-child(3) { width: 8% !important; } /* Type */
-    th:nth-child(4), td:nth-child(4) { width: 11% !important; } /* Division */
-    th:nth-child(5), td:nth-child(5) { width: 13% !important; } /* Company */
-    th:nth-child(6), td:nth-child(6) { width: 11% !important; } /* Location */
-    th:nth-child(7), td:nth-child(7) { width: 10% !important; } /* Store */
-    th:nth-child(8), td:nth-child(8) { width: 22% !important; } /* Description */
-    th:nth-child(9), td:nth-child(9) { width: 8% !important; } /* Amount */
-    th:nth-child(10), td:nth-child(10) { width: 6% !important; } /* Remark */
-    
-    /* Table footer */
-    tfoot { display: table-footer-group !important; }
-    tfoot td { 
-        font-weight: bold !important; 
-        background-color: #f8f8f8 !important;
         font-size: 10px !important;
+        background: #fff !important;
     }
-    
-    /* Row optimization */
-    tr { page-break-inside: avoid !important; }
-    
-    /* Footer optimization */
-    .report-footer { 
-        display: block !important; 
-        margin-top: 15px !important; 
-        page-break-inside: avoid !important; 
-        font-size: 10px !important;
+    .report-page-shell,
+    .report-header,
+    .print-header,
+    .table-card,
+    .report-footer {
         width: 100% !important;
-        border-top: 1px solid #ccc;
-        padding-top: 8px;
+        max-width: none !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
     }
-    
-    /* Page settings for A4 */
-    @page { 
-        size: A4 portrait !important; 
-        margin: 10mm 8mm !important; 
+    .report-header {
+        margin-bottom: 10px !important;
+        padding-bottom: 8px !important;
     }
-    
-    /* Remove any extra spacing */
-    .pending { background-color: #fff3cd !important; }
-    
-    /* Ensure no horizontal overflow */
-    .table-responsive { max-width: 100% !important; }
+    .report-title-wrap {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    .report-header-meta {
+        display: none !important;
+    }
+    .report-glass-page .report-header h2 {
+        width: 100% !important;
+        text-align: center !important;
+        font-size: 20px !important;
+    }
+    .print-header {
+        font-size: 10.5px !important;
+        margin-bottom: 8px !important;
+    }
+    .table-card,
+    .table-responsive {
+        overflow: visible !important;
+    }
+    .table-card table {
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+    }
+    .table-card thead th,
+    .table-card tbody td,
+    .table-card tfoot td {
+        padding: 4px 4px !important;
+        font-size: 8.5px !important;
+        line-height: 1.2 !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal !important;
+    }
+    .table-card thead th:nth-child(1),
+    .table-card tbody td:nth-child(1) { width: 5% !important; }
+    .table-card thead th:nth-child(2),
+    .table-card tbody td:nth-child(2) { width: 8% !important; }
+    .table-card thead th:nth-child(3),
+    .table-card tbody td:nth-child(3) { width: 8% !important; }
+    .table-card thead th:nth-child(4),
+    .table-card tbody td:nth-child(4) { width: 11% !important; }
+    .table-card thead th:nth-child(5),
+    .table-card tbody td:nth-child(5) { width: 13% !important; }
+    .table-card thead th:nth-child(6),
+    .table-card tbody td:nth-child(6) { width: 10% !important; }
+    .table-card thead th:nth-child(7),
+    .table-card tbody td:nth-child(7) { width: 10% !important; }
+    .table-card thead th:nth-child(8),
+    .table-card tbody td:nth-child(8) { width: 25% !important; }
+    .table-card thead th:nth-child(9),
+    .table-card tbody td:nth-child(9) { width: 7% !important; }
+    .table-card thead th:nth-child(10),
+    .table-card tbody td:nth-child(10) { width: 3% !important; }
+    .report-footer {
+        margin-top: 22px !important;
+        font-size: 10px !important;
+    }
 }
 </style>
-
-<script>
-$(document).ready(function(){
-    let pendingUpdate = null;
-
-    $('.action-btn').click(function(){
-        const btn = $(this);
-        const id = btn.data('id');
-        const category = btn.data('category');
-        const update_bill = btn.data('value');
-
-        if(update_bill === 'yes'){
-            pendingUpdate = {btn, id, category, update_bill};
-            $('#confirmModal').modal('show');
-        } else {
-            updateBill(btn, id, category, update_bill);
-        }
-    });
-
-    $('#confirmYesBtn').click(function(){
-        if(pendingUpdate){
-            updateBill(pendingUpdate.btn, pendingUpdate.id, pendingUpdate.category, pendingUpdate.update_bill);
-            $('#confirmModal').modal('hide');
-            pendingUpdate = null;
-        }
-    });
-
-    function updateBill(btn, id, category, update_bill){
-        $.post('', {id, category, update_bill}, function(response){
-            if(response === 'success'){
-                btn.closest('td').text(update_bill === 'yes' ? 'Yes' : 'No');
-            } else {
-                alert('Update failed');
-            }
-        });
-    }
-
-    // Print optimization for A4
-    window.addEventListener('beforeprint', function() {
-        // Ensure proper sizing for A4
-        document.body.style.fontSize = '11px';
-        document.body.style.lineHeight = '1.2';
-        
-        // Adjust table if needed
-        const table = document.querySelector('table');
-        if (table) {
-            table.style.fontSize = '9px';
-        }
-    });
-    
-    window.addEventListener('afterprint', function() {
-        // Reset styles after printing
-        document.body.style.fontSize = '';
-        document.body.style.lineHeight = '';
-        
-        const table = document.querySelector('table');
-        if (table) {
-            table.style.fontSize = '';
-        }
-    });
-});
-</script>
 </head>
-<body>
+<body class="report-glass-page">
 
-<div class="container my-4">
-
-    <div class="text-center mb-2 print-header">
-        <img src="assets/visionlogo.jpg" alt="Company Logo" style="max-height:80px;">
-        <h2 class="mb-1">No Bill Payment Slip</h2>
+<div class="report-page-shell">
+    <div class="report-header">
+        <div class="report-title-wrap">
+            <img src="assets/visionlogo.jpg" alt="Company Logo">
+            <h2><i class="bi bi-receipt-cutoff me-2"></i>No Bill Payment Slip</h2>
+        </div>
+        <div class="report-header-meta">
+            <span class="pending-chip"><i class="bi bi-hourglass-split"></i><?= count($pending_rows) ?> Pending</span>
+        </div>
     </div>
 
-    <form method="get" id="filterForm" class="row g-2 mb-3 align-items-end">
-        <div class="col-md-3">
-            <label for="month_year" class="form-label">Select Month & Year</label>
-            <input type="month" id="month_year" name="month_year" class="form-control"
-                   value="<?= htmlspecialchars($month_year_filter ?: date('Y-m')) ?>">
+    <form method="get" id="filterForm" class="report-toolbar report-toolbar-actions-left mb-3">
+        <div class="toolbar-actions">
+            <button type="button" class="btn-glass btn-glass-danger" onclick="window.location.href='<?= htmlspecialchars($back_url) ?>'"><i class="bi bi-house"></i> Home</button>
+            <button type="button" class="btn-glass btn-glass-success" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
         </div>
-        <div class="col-md-2">
-            <label for="region" class="form-label">Region</label>
-            <select class="form-select" name="region" id="region">
-                <?php
-                $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
-                foreach ($regions as $region) {
-                    $selected = ($region_filter == $region) ? 'selected' : '';
-                    echo "<option value=\"$region\" $selected>$region</option>";
-                }
-                ?>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Username</label>
-            <select class="form-select" name="username">
-                <option value="">All Users</option>
-                <?php foreach($usernames as $uname): ?>
-                    <option value="<?= htmlspecialchars($uname) ?>" <?= ($username_filter==$uname)?'selected':'' ?>>
-                        <?= htmlspecialchars($uname) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="col-md-4 d-flex gap-2">
-            <button class="btn btn-primary">Search</button>
-            <button type="button" class="btn btn-secondary" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">Back</button>
-            <button type="button" class="btn btn-success" onclick="window.print()">🖨️ Print</button>
+        <div class="toolbar-divider d-none d-md-block"></div>
+        <div class="toolbar-filter-group">
+            <div class="toolbar-field">
+                <label for="month_year" class="form-label">Month & Year</label>
+                <input type="month" id="month_year" name="month_year" class="form-control" value="<?= htmlspecialchars($month_year_filter ?: date('Y-m')) ?>">
+            </div>
+            <div class="toolbar-field">
+                <label for="region" class="form-label">Region</label>
+                <select class="form-select" name="region" id="region">
+                    <?php foreach (['All','Dammam','Riyadh','Jeddah','Other'] as $region): ?>
+                    <option value="<?= htmlspecialchars($region) ?>" <?= ($region_filter === $region) ? 'selected' : '' ?>><?= htmlspecialchars($region) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="toolbar-field">
+                <label class="form-label" for="username">Username</label>
+                <select class="form-select" name="username" id="username">
+                    <option value="">All Users</option>
+                    <?php foreach ($usernames as $uname): ?>
+                    <option value="<?= htmlspecialchars($uname) ?>" <?= ($username_filter === $uname) ? 'selected' : '' ?>><?= htmlspecialchars($uname) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="toolbar-field">
+                <label class="form-label" for="per_page">Rows</label>
+                <select class="form-select" name="per_page" id="per_page">
+                    <?php foreach ([10, 25, 50, 100, 200] as $option): ?>
+                    <option value="<?= $option ?>" <?= ($per_page === $option) ? 'selected' : '' ?>><?= $option ?> per page</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="toolbar-search-actions">
+                <button class="btn-glass btn-glass-primary" type="submit"><i class="bi bi-search"></i> Search</button>
+                <button type="button" class="btn-glass btn-glass-secondary" onclick="window.location.href='pending_bills.php'"><i class="bi bi-x-circle"></i> Clear</button>
+            </div>
         </div>
     </form>
 
-    <div class="mb-2 d-flex justify-content-between">
-        <div><strong>Month:</strong> <?= $month_year_filter ? date('F, Y', strtotime($month_year_filter . '-01')) : 'All Months' ?></div>
-        <div><strong>User:</strong> <?= $username_filter ? htmlspecialchars($username_filter) : 'All Users' ?></div>
-        <div><strong>Region:</strong> <?= $region_filter ?></div>
+    <div class="info-strip print-header">
+        <div class="d-flex flex-wrap gap-2">
+            <span class="chip"><i class="bi bi-calendar-event"></i> Month: <?= htmlspecialchars($selected_month_label) ?></span>
+            <span class="chip"><i class="bi bi-person"></i> User: <?= $username_filter ? htmlspecialchars($username_filter) : 'All Users' ?></span>
+            <span class="chip"><i class="bi bi-geo-alt"></i> Region: <?= htmlspecialchars($region_filter) ?></span>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="chip"><i class="bi bi-list-check"></i> Showing: <?= count($paged_rows) ?> of <?= $total_records ?></span>
+            <span class="chip"><i class="bi bi-file-earmark-text"></i> Page: <?= $page ?> of <?= $total_pages ?></span>
+            <span class="chip"><i class="bi bi-cash-stack"></i> Total: SAR <?= number_format($total_amount, 2) ?></span>
+        </div>
     </div>
 
-    <div class="print-section">
+    <div class="print-section table-card">
         <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle" style="width:100%; margin-bottom: 8px;">
-                <thead class="table-dark" style="color: black;">
+            <table class="table table-hover align-middle">
+                <thead>
                     <tr>
-                        <th style="width:6%;">SI No</th>
-                        <th style="width:9%;">Date</th>
-                        <th style="width:8%;">Type</th>
-                        <th style="width:11%;">Division</th>
-                        <th style="width:13%;">Company</th>
-                        <th style="width:11%;">Location</th>
-                        <th style="width:10%;">Store</th>
-                        <th style="width:22%;">Description</th>
-                        <th style="width:8%;">Amount</th>
-                        <th style="width:6%;">Remark</th>
+                        <th>SI No</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Division</th>
+                        <th>Company</th>
+                        <th>Location</th>
+                        <th>Store</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Bill</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php
-                    $i=1; $total_amount=0;
-                    while($row=$result->fetch_assoc()):
-                        $total_amount += (float)$row['amount'];
-                        $is_pending = empty($row['bill']) || strtolower($row['bill'])=='no';
-                    ?>
-                    <tr class="<?= $is_pending ? 'pending' : '' ?>">
+                    <?php $i = $offset + 1; foreach ($paged_rows as $row): ?>
+                    <?php $is_pending = empty($row['bill']) || strtolower($row['bill']) === 'no'; ?>
+                    <tr class="<?= $is_pending ? 'pending-row' : '' ?>">
                         <td><?= $i++ ?></td>
                         <td><?= htmlspecialchars($row['date']) ?></td>
                         <td><?= htmlspecialchars($row['expense_category']) ?></td>
@@ -423,21 +392,25 @@ $(document).ready(function(){
                         <td><?= htmlspecialchars($row['location'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['store'] ?? '-') ?></td>
                         <td><?= htmlspecialchars($row['description']) ?></td>
-                        <td><?= htmlspecialchars($row['amount']) ?></td>
-                        <td>
-                            <?php if($is_pending): ?>
-                                <button class="btn btn-success btn-sm action-btn"
-                                        data-id="<?= $row['id'] ?>"
-                                        data-category="<?= $row['expense_category'] ?>"
-                                        data-value="yes">Yes</button>
+                        <td>SAR <?= number_format((float)$row['amount'], 2) ?></td>
+                        <td class="bill-status-cell">
+                            <?php if ($is_pending): ?>
+                            <button class="btn-glass btn-glass-success action-btn" style="padding:3px 10px; min-height:28px; font-size:0.75rem;" data-id="<?= $row['id'] ?>" data-category="<?= htmlspecialchars($row['expense_category']) ?>" data-value="yes">Yes</button>
                             <?php else: ?>
-                                <?= htmlspecialchars($row['bill']) ?>
+                            <?= htmlspecialchars($row['bill']) ?>
                             <?php endif; ?>
                         </td>
                     </tr>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
+                    <?php if (empty($paged_rows)): ?>
+                    <tr><td colspan="10" class="text-center">No pending bills found.</td></tr>
+                    <?php endif; ?>
                 </tbody>
-                <tfoot class="table-light">
+                <tfoot>
+                    <tr>
+                        <td colspan="8" class="text-end fw-bold">Page Total:</td>
+                        <td colspan="2">SAR <?= number_format($page_amount, 2) ?></td>
+                    </tr>
                     <tr>
                         <td colspan="8" class="text-end fw-bold">Total Spend:</td>
                         <td colspan="2">SAR <?= number_format($total_amount, 2) ?></td>
@@ -445,33 +418,120 @@ $(document).ready(function(){
                 </tfoot>
             </table>
         </div>
+    </div>
 
-        <div class="report-footer d-print-block mt-2">
-            <div style="display:flex; justify-content:space-between; font-size: 10px;">
-                <div style="width:33%; text-align:left;">Prepared By: _______________</div>
-                <div style="width:33%; text-align:center;">Verified By: _______________</div>
-                <div style="width:33%; text-align:right;">Approved By: _______________</div>
-            </div>
-        </div>
+    <?php if ($total_pages > 1): ?>
+    <nav aria-label="Pending bills pages" class="mt-3 no-print">
+        <ul class="pagination pagination-sm justify-content-center flex-wrap">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link" href="?<?= build_pending_query(['page' => 1]) ?>">First</a>
+            </li>
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link" href="?<?= build_pending_query(['page' => max(1, $page - 1)]) ?>">&laquo;</a>
+            </li>
+            <?php
+            $start_page = max(1, $page - 2);
+            $end_page = min($total_pages, $page + 2);
+            if ($start_page > 1) {
+                echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+            for ($p = $start_page; $p <= $end_page; $p++):
+            ?>
+            <li class="page-item <?= ($p === $page) ? 'active' : '' ?>">
+                <a class="page-link" href="?<?= build_pending_query(['page' => $p]) ?>"><?= $p ?></a>
+            </li>
+            <?php endfor;
+            if ($end_page < $total_pages) {
+                echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+            ?>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link" href="?<?= build_pending_query(['page' => min($total_pages, $page + 1)]) ?>">&raquo;</a>
+            </li>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link" href="?<?= build_pending_query(['page' => $total_pages]) ?>">Last</a>
+            </li>
+        </ul>
+        <p class="text-center text-muted small mb-0">Page <?= $page ?> of <?= $total_pages ?> (<?= $total_records ?> pending bills)</p>
+    </nav>
+    <?php endif; ?>
+
+    <div class="report-footer">
+        <div>Prepared By:</div>
+        <div>Verified By:</div>
+        <div>Approved By:</div>
     </div>
 </div>
 
-<!-- Confirm Modal -->
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade confirm-bill-modal" id="confirmModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header bg-warning">
-        <h5 class="modal-title">Confirm Update</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Confirm Update</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">Are you sure you want to mark this bill as <strong>Yes</strong>?</div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-success" id="confirmYesBtn">Yes, Update</button>
+        <button type="button" class="btn-glass btn-glass-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> Cancel</button>
+        <button type="button" class="btn-glass btn-glass-success" id="confirmYesBtn"><i class="bi bi-check-circle"></i> Yes, Update</button>
       </div>
     </div>
   </div>
 </div>
 
+<script src="assets/vendor/bootstrap-5.0.2/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let pendingUpdate = null;
+    const modalElement = document.getElementById('confirmModal');
+    const confirmModal = modalElement ? new bootstrap.Modal(modalElement) : null;
+
+    document.querySelectorAll('.action-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            pendingUpdate = {
+                btn: btn,
+                id: btn.dataset.id,
+                category: btn.dataset.category,
+                updateBill: btn.dataset.value
+            };
+            if (confirmModal) confirmModal.show();
+        });
+    });
+
+    const confirmBtn = document.getElementById('confirmYesBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+            if (!pendingUpdate) return;
+            updateBill(pendingUpdate.btn, pendingUpdate.id, pendingUpdate.category, pendingUpdate.updateBill);
+            if (confirmModal) confirmModal.hide();
+            pendingUpdate = null;
+        });
+    }
+
+    function updateBill(btn, id, category, updateBillValue) {
+        const body = new URLSearchParams();
+        body.set('id', id);
+        body.set('category', category);
+        body.set('update_bill', updateBillValue);
+
+        fetch('', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: body.toString()
+        })
+        .then(function(response) { return response.text(); })
+        .then(function(text) {
+            if (text.trim() === 'success') {
+                btn.closest('td').textContent = updateBillValue === 'yes' ? 'Yes' : 'No';
+            } else {
+                alert('Update failed');
+            }
+        })
+        .catch(function() {
+            alert('Update failed');
+        });
+    }
+});
+</script>
 </body>
 </html>

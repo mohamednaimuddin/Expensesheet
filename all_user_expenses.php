@@ -146,40 +146,37 @@ $total_adv = $stmt->get_result()->fetch_assoc()['total_adv'] ?? 0;
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>All Users Expense Report | VisionAngles</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<link href="assets/dashboard_admin.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/flatpickr/flatpickr.min.css">
 <link rel="icon" type="image/png" href="assets/vision.ico">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
-<link href="assets/all_user_expense.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap-5.0.2/css/bootstrap.min.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<link href="assets/user_report.css" rel="stylesheet">
 </head>
-<body>
+<body class="report-glass-page">
 
-<!-- Animated background blobs (matches dashboard) -->
-<div class="bg-blobs" aria-hidden="true">
-    <span class="blob blob-1"></span>
-    <span class="blob blob-2"></span>
-    <span class="blob blob-3"></span>
-</div>
-
-<div class="app-container page-wrap">
+<div class="report-page-shell">
 
     <div class="report-header">
-        <img src="assets/visionlogo.jpg" alt="Company Logo">
-        <h2><i class="fa-solid fa-chart-line me-2" style="color:var(--blue-600);"></i>All Users Expense Report</h2>
+        <div class="report-title-wrap">
+            <img src="assets/visionlogo.jpg" alt="Company Logo">
+            <h2><i class="bi bi-graph-up-arrow me-2"></i>All Users Expense Report</h2>
+        </div>
+        <div class="report-header-meta">Grand Total: SAR <?= number_format($total_amount, 2) ?></div>
     </div>
 
-    <form method="get" class="filter-card no-print">
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <div class="form-group">
-                <input type="date" class="form-control form-control-sm" name="from_date" value="<?= htmlspecialchars($from_date) ?>" required>
+    <form method="get" class="report-toolbar mb-3">
+        <div class="toolbar-filter-group">
+            <div class="toolbar-field">
+                <label class="form-label" for="from_date">From Date</label>
+                <input type="date" class="form-control form-control-sm" id="from_date" name="from_date" value="<?= htmlspecialchars($from_date) ?>" required>
             </div>
-            <div class="form-group">
-                <input type="date" class="form-control form-control-sm" name="to_date" value="<?= htmlspecialchars($to_date) ?>" required>
+            <div class="toolbar-field">
+                <label class="form-label" for="to_date">To Date</label>
+                <input type="date" class="form-control form-control-sm" id="to_date" name="to_date" value="<?= htmlspecialchars($to_date) ?>" required>
             </div>
-            <div class="form-group">
-                <select class="form-select form-select-sm" name="region">
+            <div class="toolbar-field">
+                <label class="form-label" for="region">Region</label>
+                <select class="form-select form-select-sm" id="region" name="region">
                     <?php
                     $regions = ['All','Dammam','Riyadh','Jeddah','Other'];
                     foreach ($regions as $region) {
@@ -189,8 +186,9 @@ $total_adv = $stmt->get_result()->fetch_assoc()['total_adv'] ?? 0;
                     ?>
                 </select>
             </div>
-            <div class="form-group">
-                <select class="form-select form-select-sm" name="per_page">
+            <div class="toolbar-field">
+                <label class="form-label" for="per_page">Rows</label>
+                <select class="form-select form-select-sm" id="per_page" name="per_page">
                     <?php
                     $per_page_options = [25, 50, 100, 200, 500];
                     foreach ($per_page_options as $opt) {
@@ -200,24 +198,27 @@ $total_adv = $stmt->get_result()->fetch_assoc()['total_adv'] ?? 0;
                     ?>
                 </select>
             </div>
-            <div class="d-flex flex-wrap gap-2 ms-auto">
-                <button class="btn btn-pill btn-search" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
-                <button class="btn btn-pill btn-clear" type="button" onclick="window.location='all_user_expenses.php'"><i class="fa-solid fa-rotate-left"></i> Clear</button>
-                <button class="btn btn-pill btn-print" type="button" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
-                <button class="btn btn-pill btn-back" type="button" onclick="window.location='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <div class="toolbar-search-actions">
+                <button class="btn-glass btn-glass-primary" type="submit"><i class="bi bi-search"></i> Search</button>
+                <button class="btn-glass btn-glass-secondary" type="button" onclick="window.location='all_user_expenses.php'"><i class="bi bi-x-circle"></i> Clear</button>
             </div>
+        </div>
+        <div class="toolbar-divider d-none d-md-block"></div>
+        <div class="toolbar-actions">
+            <button class="btn-glass btn-glass-danger" type="button" onclick="window.location='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'"><i class="bi bi-arrow-left"></i> Back</button>
+            <button class="btn-glass btn-glass-success" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
         </div>
     </form>
 
     <div class="info-strip print-header">
         <div class="d-flex flex-wrap gap-2">
-            <span class="chip"><i class="fa-solid fa-location-dot"></i> Region: <?= htmlspecialchars($region_filter) ?></span>
-            <span class="chip"><i class="fa-solid fa-calendar-day"></i> From: <?= htmlspecialchars($from_date) ?></span>
-            <span class="chip"><i class="fa-solid fa-calendar-check"></i> To: <?= htmlspecialchars($to_date) ?></span>
+            <span class="chip"><i class="bi bi-geo-alt"></i> Region: <?= htmlspecialchars($region_filter) ?></span>
+            <span class="chip"><i class="bi bi-calendar-event"></i> From: <?= htmlspecialchars($from_date) ?></span>
+            <span class="chip"><i class="bi bi-calendar-check"></i> To: <?= htmlspecialchars($to_date) ?></span>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <span class="chip advance"><i class="fa-solid fa-wallet"></i> Advance: SAR <?= number_format($total_adv, 2) ?></span>
-            <span class="chip records"><i class="fa-solid fa-list"></i> Showing <?= count($paged_expenses) ?> of <?= $total_records ?></span>
+            <span class="chip advance"><i class="bi bi-wallet2"></i> Advance: SAR <?= number_format($total_adv, 2) ?></span>
+            <span class="chip records"><i class="bi bi-list-ul"></i> Showing <?= count($paged_expenses) ?> of <?= $total_records ?></span>
         </div>
     </div>
 
@@ -331,8 +332,8 @@ $total_adv = $stmt->get_result()->fetch_assoc()['total_adv'] ?? 0;
     <div>Approved By:</div>
 </div>
 
-</div><!-- /.app-container -->
+</div><!-- /.report-page-shell -->
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/vendor/bootstrap-5.0.2/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

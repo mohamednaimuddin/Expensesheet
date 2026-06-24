@@ -1,4 +1,4 @@
-<?php 
+<?php
 session_start();
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'superadmin'])) {
     header("Location: index.php");
@@ -61,54 +61,120 @@ usort($all_tv_expenses, function($a,$b){ return strtotime($a['date']) <=> strtot
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TV Expense Report | VisionAngles</title>
 <link rel="stylesheet" href="assets/vendor/flatpickr/flatpickr.min.css">
-<link href="assets/user_report.css" rel="stylesheet">
 <link rel="icon" type="image/png" href="assets/vision.ico">
 <link href="assets/vendor/bootstrap-5.0.2/css/bootstrap.min.css" rel="stylesheet">
 <link href="assets/vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+<link href="assets/user_report.css" rel="stylesheet">
 <style>
-.table { border: 2px solid black; border-collapse: collapse; }
-th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; font-size: 11px; text-align:left; }
-.total-spend { background-color: #f2f2f2; padding: 10px; border-radius:5px; text-align:center; font-weight:bold; }
+@page {
+    size: A4 landscape;
+    margin: 10mm 12mm;
+}
 @media print {
-    body { 
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact; 
-        margin:10mm; 
-        font-size:12px; 
-        background:#fff; 
+    html, body {
+        width: 100%;
+        overflow: visible !important;
     }
-    body::before { 
-        content:""; 
-        position:fixed; 
-        top:0; 
-        left:0; 
-        width:100%; 
-        height:100%; 
-        background:url('assets/vision1.png') no-repeat center center; 
-        background-size:50%; 
-        opacity:0.05; 
-        z-index:9999; 
-        pointer-events:none; 
-        background-color:#aeb6bd; 
+    body {
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 10px !important;
+        background: #fff !important;
     }
-    table { width:100%; border-collapse:collapse; border:2px solid black; page-break-inside:auto; }
-    thead { display:table-header-group; } 
-    tfoot { display:table-footer-group; }
-    tr { page-break-inside:avoid; page-break-after:auto; }
-    th { background-color:#f0f0f0 !important; color:black; }
-    button, input, select, .btn { display:none !important; } /* hide buttons while printing */
+    body::before { display:none !important; }
+    .report-page-shell,
+    .report-header,
+    .print-header,
+    .table-card,
+    .report-footer {
+        width: 100% !important;
+        max-width: none !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    .report-header {
+        margin-bottom: 10px !important;
+        padding-bottom: 8px !important;
+    }
+    .report-title-wrap {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    .report-header-meta {
+        display: none !important;
+    }
+    .report-glass-page .report-header h2 {
+        font-size: 20px !important;
+        text-align: center !important;
+        width: 100% !important;
+    }
+    .print-header {
+        font-size: 11px !important;
+        margin-bottom: 8px !important;
+    }
+    .table-card,
+    .table-responsive {
+        overflow: visible !important;
+    }
+    .table-card table {
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+    }
+    .table-card thead th,
+    .table-card tbody td,
+    .table-card tfoot td {
+        padding: 4px 4px !important;
+        font-size: 8.5px !important;
+        line-height: 1.2 !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal !important;
+    }
+    .table-card thead th:nth-child(1),
+    .table-card tbody td:nth-child(1) { width: 5% !important; }
+    .table-card thead th:nth-child(2),
+    .table-card tbody td:nth-child(2) { width: 7% !important; }
+    .table-card thead th:nth-child(3),
+    .table-card tbody td:nth-child(3) { width: 8% !important; }
+    .table-card thead th:nth-child(4),
+    .table-card tbody td:nth-child(4) { width: 10% !important; }
+    .table-card thead th:nth-child(5),
+    .table-card tbody td:nth-child(5) { width: 10% !important; }
+    .table-card thead th:nth-child(6),
+    .table-card tbody td:nth-child(6) { width: 9% !important; }
+    .table-card thead th:nth-child(7),
+    .table-card tbody td:nth-child(7) { width: 10% !important; }
+    .table-card thead th:nth-child(8),
+    .table-card tbody td:nth-child(8) { width: 13% !important; }
+    .table-card thead th:nth-child(9),
+    .table-card tbody td:nth-child(9) { width: 13% !important; }
+    .table-card thead th:nth-child(10),
+    .table-card tbody td:nth-child(10) { width: 8% !important; }
+    .table-card thead th:nth-child(11),
+    .table-card tbody td:nth-child(11) { width: 7% !important; }
+    .report-footer {
+        margin-top: 22px !important;
+        font-size: 10px !important;
+    }
 }
 
 </style>
 </head>
-<body>
+<body class="report-glass-page">
 
-<div class="report-header">
-    <img src="assets/visionlogo.jpg" alt="Company Logo">
-    <h2>TV Expense Report</h2>
-</div>
+<div class="report-page-shell">
+    <div class="report-header">
+        <div class="report-title-wrap">
+            <img src="assets/visionlogo.jpg" alt="Company Logo">
+            <h2><i class="bi bi-tv me-2"></i>TV Expense Report</h2>
+        </div>
+        <div class="report-header-meta">Total Spend: SAR <?= number_format($total_amount, 2) ?></div>
+    </div>
 
-<form method="get" class="report-toolbar mb-3">
+<form method="get" class="report-toolbar report-toolbar-actions-left mb-3">
     <div class="toolbar-filter-group">
         <div class="toolbar-field">
             <label for="month" class="form-label mb-1 small">Month</label>
@@ -127,32 +193,45 @@ th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; fon
             </select>
         </div>
         <div class="toolbar-search-actions">
-            <button class="btn btn-outline-primary btn-sm" type="submit">
+            <button class="btn-glass btn-glass-primary" type="submit">
                 <i class="bi bi-search"></i>
                 Search
             </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location='tv_report.php'">
+            <button type="button" class="btn-glass btn-glass-secondary" onclick="window.location='tv_report.php'">
                 <i class="bi bi-x-circle"></i>
                 Clear
             </button>
         </div>
     </div>
 
+    <div class="toolbar-divider d-none d-md-block"></div>
+
     <div class="toolbar-actions">
-        <button type="button" class="btn btn-danger btn-sm" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">
-            <i class="bi bi-arrow-left"></i>
-            Back
+        <button type="button" class="btn-glass btn-glass-danger" onclick="window.location.href='<?= ($_SESSION['role'] === 'superadmin') ? 'dashboard_superadmin.php' : 'dashboard_admin.php' ?>'">
+            <i class="bi bi-house"></i>
+            Home
         </button>
-        <button class="btn btn-outline-success btn-sm" type="button" onclick="window.print()">
+        <button class="btn-glass btn-glass-success" type="button" onclick="window.print()">
             <i class="bi bi-printer"></i>
             Print
         </button>
     </div>
 </form>
 
+<div class="print-header mb-3">
+    <div>
+        <strong>Month:</strong> <?= htmlspecialchars($month_filter) ?><br>
+        <strong>Region:</strong> <?= htmlspecialchars($region_filter) ?>
+    </div>
+    <div>
+        <strong>Total Records:</strong> <?= count($all_tv_expenses) ?><br>
+    </div>
+</div>
+
+<div class="table-card">
 <div class="table-responsive">
     <table class="table align-middle">
-        <thead class="table" style="background-color:grey;">
+        <thead>
             <tr>
                 <th>SI. No</th>
                 <th>Date</th>
@@ -199,6 +278,15 @@ th, td { border: 0.5px solid black; padding: 4px 6px; word-wrap: break-word; fon
             </tr>
         </tfoot>
     </table>
+</div>
+</div>
+
+<div class="report-footer">
+    <div>Prepared By: Admin</div>
+    <div>Verified By:</div>
+    <div>Approved By:</div>
+</div>
+
 </div>
 
 </body>
