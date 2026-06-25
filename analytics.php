@@ -1150,18 +1150,24 @@ foreach ($month_values as $index => $value) {
             print-color-adjust: exact !important;
         }
         html, body {
-            width: auto;
-            height: auto;
+            width: 289mm;
+            height: 202mm;
             min-height: 0;
             margin: 0;
             overflow: visible;
-            background: #fff !important;
+            background: #f8fafc !important;
         }
-        body { color: #0f172a; font-size: 9.2px; line-height: 1.16; }
-        main.page-shell {
-            zoom: .9;
+        body { color: #020617; font-size: 9.2px; line-height: 1.16; }
+        .navbar,
+        .filter-card,
+        .analytics-calendar,
+        .petro-modal,
+        .category-hover-card,
+        .no-print {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
         }
-        .navbar, .filter-card, .no-print { display: none !important; }
         .page-shell {
             max-width: none;
             width: 100%;
@@ -1189,8 +1195,9 @@ foreach ($month_values as $index => $value) {
             grid-column: 1 / -1;
             display: block;
             margin: 0 0 3px;
-            color: #475569;
+            color: #1e293b;
             font-size: 7.8px;
+            font-weight: 700;
         }
         .row {
             display: flex !important;
@@ -1209,6 +1216,11 @@ foreach ($month_values as $index => $value) {
         }
         .mb-4 { margin-bottom: 2px !important; }
         .print-charts {
+            grid-column: 1 / -1;
+            grid-row: 4;
+            display: grid !important;
+            grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+            gap: 2mm;
             margin-bottom: 0 !important;
         }
         .print-metrics {
@@ -1217,10 +1229,6 @@ foreach ($month_values as $index => $value) {
         .col-lg-3, .col-md-6 {
             flex: 0 0 25% !important;
             max-width: 25% !important;
-        }
-        .print-charts,
-        .print-details {
-            display: contents !important;
         }
         .print-charts > *,
         .print-details > * {
@@ -1232,19 +1240,15 @@ foreach ($month_values as $index => $value) {
         }
         .print-charts .col-xl-7 {
             grid-column: 1;
-            grid-row: 4;
         }
         .print-charts .col-xl-5 {
             grid-column: 2;
-            grid-row: 4;
         }
         .print-details .col-xl-5 {
             grid-column: 1;
-            grid-row: 5;
         }
         .print-details .col-xl-7 {
             grid-column: 2;
-            grid-row: 5;
             margin: 0 !important;
         }
         .print-hide {
@@ -1415,43 +1419,64 @@ foreach ($month_values as $index => $value) {
         body {
             font-size: 8pt;
             line-height: 1.22;
+            background: #f8fafc !important;
         }
         main.page-shell {
-            zoom: 1;
+            width: 289mm;
             height: 198mm;
+            background: #f8fafc !important;
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             grid-template-rows: 9mm 4mm 14mm 66mm 93mm;
             column-gap: 2mm;
             row-gap: 2mm;
             overflow: hidden;
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
         .hero {
             min-height: 0;
             padding: 2mm 2.5mm;
             margin: 0;
             display: flex;
+            flex-direction: row !important;
             align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 2;
+            isolation: isolate;
         }
         .hero h1 {
-            font-size: 11pt;
+            color: #020617 !important;
+            font-size: 11.5pt;
             line-height: 1;
             margin: 0;
+            font-weight: 900;
         }
         .print-meta {
             align-self: center;
             margin: 0;
-            font-size: 6.6pt;
+            color: #1e293b !important;
+            font-size: 7pt;
             line-height: 1;
+            font-weight: 800;
+            position: relative;
+            z-index: 2;
         }
         .print-metrics {
             height: 14mm;
             overflow: hidden;
+            position: relative;
+            z-index: 2;
+            isolation: isolate;
         }
         .metric-card {
             height: 14mm;
             min-height: 0;
             padding: 1.5mm 2mm;
+            position: relative;
+            z-index: 1;
         }
         .metric-icon {
             width: 5mm;
@@ -1459,57 +1484,102 @@ foreach ($month_values as $index => $value) {
             font-size: 7pt;
         }
         .metric-label {
-            font-size: 5.7pt;
+            color: #1e293b !important;
+            font-size: 6pt;
             line-height: 1;
+            font-weight: 900;
         }
         .metric-value {
+            color: #020617 !important;
             font-size: 9pt;
             line-height: 1.05;
             margin-top: 1mm;
+            font-weight: 900;
         }
         .print-charts .chart-card,
         .print-charts .category-share-card {
             height: 66mm;
             padding: 2mm;
+            background: #fff !important;
+            position: relative;
+            z-index: 1;
+            isolation: isolate;
+        }
+        .print-details {
+            grid-column: 1 / -1;
+            grid-row: 5;
+            display: grid !important;
+            grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+            gap: 2mm;
+            margin: 0 !important;
+            position: relative;
+            z-index: 2;
+            isolation: isolate;
         }
         .print-details .chart-card,
         .print-details .table-card,
         .print-details .top-spenders-card {
             height: 93mm;
             padding: 2mm;
+            background: #fff !important;
+            position: relative;
+            z-index: 1;
+            isolation: isolate;
         }
         .chart-title {
-            font-size: 8.5pt;
+            color: #020617 !important;
+            font-size: 9pt;
             line-height: 1;
             margin-bottom: 1.5mm;
+            font-weight: 900;
         }
         .trend-insights {
             gap: 1mm;
             margin: 0 0 1.5mm;
+            position: relative;
+            z-index: 4;
+            isolation: isolate;
         }
         .trend-insight {
             padding: 1.2mm 1.5mm;
+            background: #f8fafc !important;
+            position: relative;
+            z-index: 5;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .trend-insight span,
         .trend-insight small {
-            font-size: 5.4pt;
+            color: #1e293b !important;
+            font-size: 5.8pt;
+            font-weight: 800;
         }
         .trend-insight strong {
-            font-size: 7pt;
+            color: #020617 !important;
+            font-size: 7.3pt;
+            font-weight: 900;
         }
         .print-charts .chart-canvas-box,
         .print-charts .category-share-card .chart-canvas-box {
             height: 48mm !important;
             min-height: 48mm !important;
             max-height: 48mm !important;
+            position: relative !important;
+            z-index: 1 !important;
         }
         .print-charts .trend-canvas-box {
             height: 38mm !important;
             min-height: 38mm !important;
             max-height: 38mm !important;
+            position: relative !important;
+            z-index: 1 !important;
         }
         .print-charts canvas,
         .print-charts .category-share-card canvas {
+            display: block !important;
+            position: relative !important;
+            z-index: 0 !important;
+            background: transparent !important;
             height: 48mm !important;
             max-height: 48mm !important;
         }
@@ -1519,21 +1589,27 @@ foreach ($month_values as $index => $value) {
         }
         .category-row {
             padding: 1.25mm 0;
-            font-size: 7.1pt;
+            color: #020617 !important;
+            font-size: 7.4pt;
             gap: 1mm 2mm;
+            font-weight: 800;
         }
         .category-name i {
             font-size: 7.1pt;
         }
         .category-amount {
-            font-size: 7.1pt;
+            color: #020617 !important;
+            font-size: 7.4pt;
+            font-weight: 900;
         }
         .bar-track {
             height: 1.35mm;
         }
         .table {
-            font-size: 7.4pt;
+            color: #020617 !important;
+            font-size: 7.7pt;
             line-height: 1.18;
+            font-weight: 800;
         }
         .table > :not(caption) > * > * {
             padding: 2.15mm 1.5mm;
@@ -2401,6 +2477,8 @@ const trendChart = new Chart(document.getElementById('trendChart'), {
         }]
     },
     options: {
+        animation: false,
+        devicePixelRatio: 3,
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
@@ -2408,7 +2486,7 @@ const trendChart = new Chart(document.getElementById('trendChart'), {
             legend: {
                 display: true,
                 position: 'bottom',
-                labels: { boxWidth: 12, font: { size: 10, weight: 'bold' } }
+                labels: { boxWidth: 12, color: '#020617', font: { size: 11, weight: 'bold' } }
             },
             tooltip: {
                 callbacks: {
@@ -2417,12 +2495,12 @@ const trendChart = new Chart(document.getElementById('trendChart'), {
             }
         },
         scales: {
-            x: { ticks: { font: { size: 10 } } },
-            y: { ticks: { callback: moneyTick, font: { size: 10 } }, beginAtZero: true },
+            x: { ticks: { color: '#020617', font: { size: 11, weight: 'bold' } } },
+            y: { ticks: { color: '#020617', callback: moneyTick, font: { size: 11, weight: 'bold' } }, beginAtZero: true },
             changeAxis: {
                 position: 'right',
                 grid: { drawOnChartArea: false },
-                ticks: { callback: moneyTick, font: { size: 10 } }
+                ticks: { color: '#020617', callback: moneyTick, font: { size: 11, weight: 'bold' } }
             }
         }
     }
@@ -2438,15 +2516,17 @@ const categoryChart = new Chart(document.getElementById('categoryChart'), {
         }]
     },
     options: {
+        animation: false,
+        devicePixelRatio: 3,
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, color: '#020617', font: { size: 11, weight: 'bold' } } } },
         cutout: '62%'
     }
 });
 window.addEventListener('beforeprint', () => {
-    trendChart.resize(500, 144);
-    categoryChart.resize(500, 182);
+    trendChart.resize();
+    categoryChart.resize();
 });
 window.addEventListener('afterprint', () => {
     trendChart.resize();
